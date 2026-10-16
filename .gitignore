@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+data/2026-*/
+data/*.zip
+data/*.csv
+data/.token_cache.json

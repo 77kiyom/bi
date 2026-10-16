@@ -1,0 +1,67 @@
+name: 更新抖快看板
+
+on:
+  schedule:
+    # 每天 11:30（北京时间）= 03:30 UTC
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: doukuai-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 拉取 BI 数据并生成看板
+        env:
+          BI_TOKEN_KEY: ${{ secrets.BI_TOKEN_KEY }}
+        run: |
+          python daily_update.py --skip-upload
+
+      - name: 输出到 docs/（GitHub Pages 目录）
+        run: |
+          mkdir -p docs
+          cp dashboard.html docs/index.html
+          cp dashboard_data.json docs/dashboard_data.json
+
+      - name: 注入「手动更新」按钮（跳转 Actions 手动运行）
+        run: |
+          python - <<'PY'
+          import os
+          repo = os.environ["GITHUB_REPOSITORY"]
+          p = "docs/index.html"
+          html = open(p, encoding="utf-8").read()
+          url = "https://github.com/%s/actions/workflows/update.yml" % repo
+          btn = ('<a href="%s" target="_blank" rel="noopener" '
+                 'style="border:1px solid var(--brand);background:var(--brand);color:#fff;'
+                 'padding:7px 16px;border-radius:9px;font-size:13px;text-decoration:none;'
+                 'font-family:inherit;margin-right:4px">手动更新（在 GitHub 运行）</a>') % url
+          if 'class="toolbar"' in html and 'actions/workflows/update.yml' not in html:
+              html = html.replace('<div class="toolbar">', '<div class="toolbar">\n    ' + btn, 1)
+          open(p, "w", encoding="utf-8").write(html)
+          PY
+
+      - name: 提交更新
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs
+          if git diff --cached --quiet; then
+            echo "无变化"
+          else
+            git commit -m "更新看板 $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git push
+          fi
