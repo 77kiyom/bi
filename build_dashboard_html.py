@@ -131,7 +131,7 @@ TEMPLATE = r"""<!DOCTYPE html>
   </div>
 
   <div class="panel">
-    <h2>Top 单品 <small>销售额 ≥ 1 万（按上方日期区间）</small></h2>
+    <h2>Top 单品 <small id="topNote">销售额 ≥ 1 万</small></h2>
     <div id="topItems"></div>
   </div>
 
@@ -143,6 +143,13 @@ TEMPLATE = r"""<!DOCTYPE html>
         <button data-p="week_prev">上周</button>
         <button data-p="month">本月</button>
         <button data-p="quarter">Q4 季度</button>
+      </div>
+      <span class="lb" id="achRange"></span>
+      <span class="lb" style="margin-left:auto">排序</span>
+      <div class="seg" id="achSortSeg">
+        <button data-s="default" class="on">默认</button>
+        <button data-s="desc">降序</button>
+        <button data-s="asc">升序</button>
       </div>
     </div>
     <div class="chart" id="achChart"></div>
@@ -172,6 +179,7 @@ function presetRange(p){
 
 let salesRange = presetRange('week_cur');
 let achPeriod = 'week_cur';
+let achSort = 'default';
 
 function sumRange(g,d0,d1){
   let a=0,t=0,q=0;
@@ -220,6 +228,7 @@ function renderHeader(){
 function renderSales(){
   const d0=salesRange[0], d1=salesRange[1];
   document.getElementById('salesNote').textContent = `（${d0} ~ ${d1}）`;
+  document.getElementById('topNote').textContent = `销售额 ≥ 1 万（${d0} ~ ${d1}）`;
   const len = Math.round((new Date(d1)-new Date(d0))/86400000)+1;
   const pv0 = addDays(d0,-len), pv1 = addDays(d0,-1);
   let cards='', rows='', tAll=[0,0,0];
@@ -261,35 +270,52 @@ function renderSales(){
   document.getElementById('topItems').innerHTML = html;
 }
 
+function achRange(p){
+  const m=DATA.meta;
+  if(p==='week_cur') return [m.week.start, m.week.end];
+  if(p==='week_prev') return [addDays(m.week.start,-7), addDays(m.week.end,-7)];
+  if(p==='month') return [m.month.start, m.month.end];
+  if(p==='quarter') return [m.quarter.start, m.quarter.end];
+  return ['', ''];
+}
 function renderAch(){
   const p=achPeriod;
   const label={week_cur:'本周',week_prev:'上周',month:'本月',quarter:'Q4 季度'}[p];
   document.getElementById('targetNote').textContent='抖音渠道 · '+label;
+  const rg=achRange(p);
+  document.getElementById('achRange').textContent='（'+rg[0]+' ~ '+rg[1]+'）';
   const tkey=(p==='week_cur'||p==='week_prev')?'week':(p==='month'?'month':'quarter');
-  let trows='', chart='';
-  (DATA.ach||[]).forEach(a=>{
+  let rows=(DATA.ach||[]).map(a=>{
     const act=a.actual[p]||0;
     const tg=(a.target||{})[tkey];
+    const r=(tg&&tg>0)? act/tg*100 : null;
+    return {a:a, act:act, tg:tg, r:r};
+  });
+  if(achSort==='desc') rows.sort((x,y)=>((y.r==null?-1:y.r)-(x.r==null?-1:x.r)));
+  else if(achSort==='asc') rows.sort((x,y)=>((x.r==null?1e9:x.r)-(y.r==null?1e9:y.r)));
+  let trows='', chart='';
+  rows.forEach(o=>{
+    const a=o.a, act=o.act, tg=o.tg, r=o.r;
     let cell;
     if(tg==null||tg===0){ cell='<td class="muted">待填</td>'; }
-    else {
-      const r=act/tg*100;
-      cell=`<td><b style="color:${r>=100?'var(--down)':(r>=80?'var(--amber)':'var(--up)')}">${r.toFixed(1)}%</b></td>`;
-    }
-    trows += `<tr><td class="name">${a.name}</td><td>${tg==null?'-':money(tg)}</td><td>${money(act)}</td>${cell}</tr>`;
-    const r=(tg&&tg>0)? act/tg*100 : 0;
-    const w=Math.min(r,150)/150*100;
-    const col=r>=100?'var(--down)':(r>=80?'var(--amber)':'var(--up)');
-    chart += `<div class="row"><div class="lbl">${a.name}</div>
+    else { cell=`<td><b style="color:${r>=100?'var(--down)':(r>=80?'var(--amber)':'var(--up)')}">${r.toFixed(1)}%</b></td>`; }
+    trows += `<tr><td class="name">${a.name}</td>${cell}<td>${tg==null?'-':money(tg)}</td><td>${money(act)}</td></tr>`;
+    const rv=(tg&&tg>0)? r : 0;
+    const w=Math.min(rv,150)/150*100;
+    const col=rv>=100?'var(--down)':(rv>=80?'var(--amber)':'var(--up)');
+    const tip=(tg&&tg>0)
+      ? `${a.name} · 达成率 ${r.toFixed(1)}%（达成 ${exact(act)} 元 / 目标 ${exact(tg)} 元）`
+      : `${a.name} · 未设目标`;
+    chart += `<div class="row" title="${tip}"><div class="lbl">${a.name}</div>
       <div class="track"><div class="fill" style="width:${w}%;background:${col}"></div>
         <div class="goal" style="left:66.667%"></div></div>
-      <div class="pct">${tg?r.toFixed(1)+'%':'-'}</div></div>`;
+      <div class="pct">${(tg&&tg>0)?r.toFixed(1)+'%':'-'}</div></div>`;
   });
   document.getElementById('targetTable').innerHTML =
-    `<table><thead><tr><th>组</th><th>目标</th><th>达成</th><th>达成率</th></tr></thead><tbody>${trows}</tbody></table>
+    `<table><thead><tr><th>组</th><th>达成率</th><th>目标</th><th>达成</th></tr></thead><tbody>${trows}</tbody></table>
      <div class="empty">目标为抖音渠道；「服配」= 服配 + 服配-羽绒 业绩合计；「待填」表示尚未设目标。</div>`;
   document.getElementById('achChart').innerHTML = chart +
-    `<div class="muted" style="font-size:11.5px;margin-top:2px">灰线 = 100% 目标线（进度条满格为 150%）</div>`;
+    `<div class="muted" style="font-size:11.5px;margin-top:2px">灰线 = 100% 目标线（进度条满格为 150%）；鼠标悬停可看具体达成率</div>`;
 }
 
 function setRangeInputs(){
@@ -315,6 +341,11 @@ document.getElementById('achSeg').addEventListener('click', e=>{
   const b=e.target.closest('button'); if(!b) return;
   [...e.currentTarget.children].forEach(x=>x.classList.toggle('on', x===b));
   achPeriod=b.dataset.p; renderAch();
+});
+document.getElementById('achSortSeg').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  [...e.currentTarget.children].forEach(x=>x.classList.toggle('on', x===b));
+  achSort=b.dataset.s; renderAch();
 });
 
 renderHeader();
