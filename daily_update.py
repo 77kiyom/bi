@@ -35,6 +35,7 @@ PAGE_NODE_ID = '9Oqpq6pE93NcTKNiVBPdQW'          # 资料库「抖快渠道销�
 SKILL_DIR = ('C:/Users/wujie15/AppData/Local/Programs/WorkBuddyAI/resources/app.asar.unpacked'
              '/resources/plugins/workbuddy-builtin/skills/library')
 PY = sys.executable
+BJ_TZ = datetime.timezone(datetime.timedelta(hours=8))   # 北京时间，避免 CI(UTC) 下日期错位
 FLYBOOK_TOKEN = os.environ.get('FLYBOOK_TOKEN', '')   # 飞书 wiki「短视频产出达人uid」obj_token
 
 ASYNC_COMPONENTS = [
@@ -218,7 +219,7 @@ def main():
     if args.data_dir:
         date_dir = args.data_dir if os.path.isabs(args.data_dir) else os.path.join(BASE, args.data_dir)
     else:
-        date_dir = os.path.join(BASE, 'data', datetime.datetime.now().strftime('%Y-%m-%d'))
+        date_dir = os.path.join(BASE, 'data', datetime.datetime.now(BJ_TZ).strftime('%Y-%m-%d'))
     # --skip-fetch 且今日目录无数据时，回退到最近一个含 douyin_detail.zip 的目录
     if args.skip_fetch and not os.path.exists(os.path.join(date_dir, 'douyin_detail.zip')):
         cand = sorted([d for d in os.listdir(os.path.join(BASE, 'data'))

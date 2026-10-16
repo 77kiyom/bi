@@ -21,6 +21,8 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_DATE = '2026-10-15'
 Q4_START = datetime.date(2026, 10, 1)
 Q4_END = datetime.date(2026, 12, 31)
+# 统一按北京时间（UTC+8）取「今天/现在」：本地与 GitHub Actions(UTC 时钟) 下结果都正确
+BJ_TZ = datetime.timezone(datetime.timedelta(hours=8))
 
 # 四个组定义：name -> (group_names, mode, use_keep, extra_exclude_file)
 GROUP_DEFS = [
@@ -175,7 +177,7 @@ def main():
             st['item_daily'][row[ii]][dt][1] += t
             st['item_daily'][row[ii]][dt][2] += q
 
-    today = datetime.date.today()
+    today = datetime.datetime.now(BJ_TZ).date()
     w_sun, w_sat = week_bounds(today)
     m_start = today.replace(day=1)
     if today.month == 12:
@@ -225,7 +227,7 @@ def main():
         })
 
     meta = {
-        'updated_at': datetime.datetime.now().strftime('%Y-%m-%d %H:%M'),
+        'updated_at': datetime.datetime.now(BJ_TZ).strftime('%Y-%m-%d %H:%M'),
         'today': today.isoformat(),
         'data_from': min(all_dates) if all_dates else None,
         'data_to': max(all_dates) if all_dates else None,
