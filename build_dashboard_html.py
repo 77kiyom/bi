@@ -88,6 +88,20 @@ TEMPLATE = r"""<!DOCTYPE html>
     .wrap{padding:14px 12px 40px}
   }
 </style>
+<style>
+  /* ── 日报视图 ── */
+  .cards5{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:14px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow)}
+  .kpi .kl{font-size:12.5px;color:var(--muted);margin-bottom:6px}
+  .kpi .kv{font-size:25px;font-weight:800;letter-spacing:-.5px}
+  .kpi .ks{font-size:12.5px;color:var(--muted);margin-top:4px;display:flex;gap:6px;align-items:center}
+  .pbar{height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;margin-top:8px}
+  .pbar>i{display:block;height:100%;border-radius:3px;background:var(--brand)}
+  .tag2{display:inline-block;padding:1px 7px;border-radius:4px;font-size:11.5px;font-weight:600}
+  .tag2.g{background:#d1fae5;color:#065f46}
+  .tag2.y{background:#fef3c7;color:#92400e}
+  .tag2.r{background:#fee2e2;color:#991b1b}
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -97,12 +111,18 @@ TEMPLATE = r"""<!DOCTYPE html>
   </header>
 
   <div class="toolbar">
+    <div class="seg" id="viewSeg">
+      <button data-v="channel" class="on">分渠道</button>
+      <button data-v="daily">日报</button>
+    </div>
     <div class="seg" id="channelSeg">
       <button data-c="抖音" class="on">抖音</button>
       <button data-c="快手">快手</button>
       <button data-c="视频号">视频号</button>
     </div>
   </div>
+
+  <div id="viewChannel">
 
   <div class="panel">
     <h2>时间进度 <small id="progNote"></small></h2>
@@ -154,6 +174,28 @@ TEMPLATE = r"""<!DOCTYPE html>
     </div>
     <div class="chart" id="achChart"></div>
     <div id="targetTable"></div>
+  </div>
+  </div><!-- /#viewChannel -->
+
+  <!-- ════ 日报视图 ════ -->
+  <div id="viewDaily" style="display:none">
+    <div class="cards5" id="kpiGrid" style="margin-bottom:16px"></div>
+    <div class="panel">
+      <h2>近 7 天销售额趋势 <small id="trendNote"></small></h2>
+      <div id="trendChart"></div>
+    </div>
+    <div class="panel">
+      <h2>各品线周达成率 <small>近 4 周</small></h2>
+      <div id="weekTable"></div>
+    </div>
+    <div class="panel">
+      <h2>Top 达人 / 直播间 <small>按当日销售额</small></h2>
+      <div id="anchorTable"></div>
+    </div>
+    <div class="panel">
+      <h2>Top 商品 <small>按当日销售额</small></h2>
+      <div id="itemTable"></div>
+    </div>
   </div>
 </div>
 
@@ -385,6 +427,200 @@ document.getElementById('achSortSeg').addEventListener('click', e=>{
   achSort=b.dataset.s; renderAch();
 });
 
+// ════════ 日报视图 ════════
+let VIEW = 'channel';
+const DGROUPS = ['家纺','家具百货组','服配','服配-羽绒'];
+const DCOLOR = {'家纺':'#2F5597','家具百货组':'#1e8e5a','服配':'#c77c00','服配-羽绒':'#8b5cf6'};
+
+function dSum(daily,d0,d1){ let a=0,q=0; for(const k in daily){ if(k<d0||k>d1) continue; a+=daily[k][0]; q+=daily[k][2]; } return [a,q]; }
+function dGroupSum(d0,d1){ let a=0,q=0; (DATA.groups||[]).forEach(g=>{ if(DGROUPS.indexOf(g.name)<0) return; const v=dSum(g.daily,d0,d1); a+=v[0]; q+=v[1]; }); return [a,q]; }
+function dTargetSum(k){ let t=0; (DATA.ach||[]).forEach(a=>{ if(DGROUPS.indexOf(a.name)<0) return; const v=(a.target||{})[k]; if(v) t+=v; }); return t; }
+function dMom(cur,prev){
+  if(!prev) return '<span style="color:var(--muted)">—</span>';
+  const r=(cur-prev)/prev*100;
+  if(Math.abs(r)<0.05) return '<span style="color:var(--muted)">→ 持平</span>';
+  const c=r>0?'var(--up)':'var(--down)';
+  return '<span style="color:'+c+'">'+(r>0?'▲':'▼')+' '+Math.abs(r).toFixed(1)+'%</span>';
+}
+function dTag(rate){
+  if(rate==null) return '<span class="tag2 y">待填</span>';
+  if(rate>=100) return '<span class="tag2 g">优秀</span>';
+  if(rate>=80) return '<span class="tag2 y">良好</span>';
+  return '<span class="tag2 r">关注</span>';
+}
+function prevMonthStart(s){
+  let y=Number(s.slice(0,4)), m=Number(s.slice(5,7))-1;
+  if(m===0){ m=12; y--; }
+  return y+'-'+String(m).padStart(2,'0')+'-01';
+}
+function monthLastDay(ym){
+  const y=Number(ym.slice(0,4)), m=Number(ym.slice(5,7));
+  return iso(new Date(Date.UTC(y, m, 0)));
+}
+
+function renderDaily(){
+  const ex = DATA.extra || {};
+  const LATEST = (ex.meta && ex.meta.data_to) || (DATA.meta && DATA.meta.data_to);
+  const grid = document.getElementById('kpiGrid');
+  if(!LATEST){ grid.innerHTML='<div class="muted" style="padding:20px">暂无日报数据</div>'; return; }
+
+  const PREV = addDays(LATEST,-1);
+  const wStart = addDays(LATEST, -new Date(LATEST).getUTCDay());
+  const wPrevStart = addDays(wStart,-7), wPrevEnd = addDays(LATEST,-7);
+  const mStart = LATEST.slice(0,7)+'-01';
+  const pmStart = prevMonthStart(LATEST);
+  const pmEnd = monthLastDay(pmStart.slice(0,7));
+  const qStart = (DATA.meta.quarter||{}).start || '2026-10-01';
+  const qPrevStart = '2026-07-01', qPrevEnd = '2026-09-30';
+
+  const day = dGroupSum(LATEST,LATEST), dayP = dGroupSum(PREV,PREV);
+  const wk = dGroupSum(wStart,LATEST), wkP = dGroupSum(wPrevStart,wPrevEnd);
+  const mo = dGroupSum(mStart,LATEST), moP = dGroupSum(pmStart,pmEnd);
+  const qt = dGroupSum(qStart,LATEST), qtP = dGroupSum(qPrevStart,qPrevEnd);
+  const orders = (ex.order_daily||{})[LATEST]||0;
+  const ordersP = (ex.order_daily||{})[PREV]||0;
+
+  const tW = dTargetSum('week'), tM = dTargetSum('month'), tQ = dTargetSum('quarter');
+  const tD = tW/7;
+
+  const cards = [
+    {l:'📦 日总销售额', v:money(day[0]), m:dMom(day[0],dayP[0]), r:tD?day[0]/tD*100:null, tn:'日目标（周/7）'},
+    {l:'📋 日订单量',   v:fmt(orders),   m:dMom(orders,ordersP), r:null, tn:''},
+    {l:'📊 周累计销售额', v:money(wk[0]), m:dMom(wk[0],wkP[0]), r:tW?wk[0]/tW*100:null, tn:'周目标'},
+    {l:'📈 月累计销售额', v:money(mo[0]), m:dMom(mo[0],moP[0]), r:tM?mo[0]/tM*100:null, tn:'月目标'},
+    {l:'📆 季度累计销售额', v:money(qt[0]), m:dMom(qt[0],qtP[0]), r:tQ?qt[0]/tQ*100:null, tn:'季度目标'}
+  ];
+  grid.innerHTML = cards.map(c=>{
+    let p='';
+    if(c.r!=null){
+      p='<div class="pbar"><i style="width:'+Math.min(c.r,100).toFixed(1)+'%"></i></div>'+
+        '<div class="ks" style="margin-top:5px;justify-content:space-between"><span>'+c.tn+'</span><b>'+
+        c.r.toFixed(1)+'%</b></div>';
+    }
+    return '<div class="kpi"><div class="kl">'+c.l+'</div><div class="kv">'+c.v+
+      '</div><div class="ks"><span>环比</span>'+c.m+'</div>'+p+'</div>';
+  }).join('');
+
+  // 趋势（近7天，4品线，内联 SVG）
+  const days=[]; for(let i=6;i>=0;i--) days.push(addDays(LATEST,-i));
+  const series = DGROUPS.map(nm=>{
+    const g=(DATA.groups||[]).find(x=>x.name===nm);
+    return {name:nm, color:DCOLOR[nm]||'#94a3b8',
+      data: days.map(d=>{ const v=g&&g.daily?g.daily[d]:null; return v? v[0]/10000 : 0; })};
+  });
+  const W=640,H=250,PL=44,PR=12,PT=14,PB=32, iw=W-PL-PR, ih=H-PT-PB;
+  let maxV=0; series.forEach(s=>s.data.forEach(v=>{ if(v>maxV) maxV=v; }));
+  maxV = maxV>0? maxV*1.15 : 1;
+  const xf = i => PL + iw*i/(days.length-1);
+  const yf = v => PT + ih - ih*(v/maxV);
+  let svg='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto">';
+  for(let k=0;k<=4;k++){
+    const v=maxV*k/4, yy=yf(v);
+    svg+='<line x1="'+PL+'" y1="'+yy+'" x2="'+(W-PR)+'" y2="'+yy+'" stroke="#eef2f7"/>';
+    svg+='<text x="'+(PL-8)+'" y="'+(yy+4)+'" text-anchor="end" font-size="11" fill="#94a3b8">'+v.toFixed(0)+'</text>';
+  }
+  days.forEach((d,i)=>{ svg+='<text x="'+xf(i)+'" y="'+(H-10)+'" text-anchor="middle" font-size="11" fill="#94a3b8">'+d.slice(5)+'</text>'; });
+  series.forEach(s=>{
+    svg+='<polyline points="'+s.data.map((v,i)=>xf(i)+','+yf(v)).join(' ')+'" fill="none" stroke="'+s.color+'" stroke-width="2.5" stroke-linejoin="round"/>';
+    s.data.forEach((v,i)=>{ svg+='<circle cx="'+xf(i)+'" cy="'+yf(v)+'" r="3" fill="'+s.color+'"/>'; });
+  });
+  svg+='</svg>';
+  let legend='<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--muted)">';
+  series.forEach(s=>{ legend+='<span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+s.color+';margin-right:5px"></i>'+s.name+'</span>'; });
+  legend+='</div>';
+  document.getElementById('trendChart').innerHTML = svg+legend;
+  document.getElementById('trendNote').textContent = '（'+days[0]+' ~ '+LATEST+'）';
+
+  // 各品线周达成率（近4周）
+  const weeks=[]; let ws=wStart;
+  for(let i=0;i<4;i++){ weeks.unshift(ws); ws=addDays(ws,-7); }
+  let th='<table><thead><tr><th>品线</th>';
+  weeks.forEach(w=>{ th+='<th style="text-align:right">'+w.slice(5)+'起</th>'; });
+  th+='<th style="text-align:right">周环比</th></tr></thead><tbody>';
+  let tb='';
+  DGROUPS.forEach(nm=>{
+    const g=(DATA.groups||[]).find(x=>x.name===nm); if(!g) return;
+    const tgt=((DATA.ach||[]).find(a=>a.name===nm)||{}).target||{};
+    const wt=tgt.week||0;
+    let last=null, prev=null;
+    tb+='<tr><td class="name">'+nm+'</td>';
+    weeks.forEach((w,idx)=>{
+      const v=dSum(g.daily,w,addDays(w,6))[0];
+      const r=wt? v/wt*100 : null;
+      if(idx===weeks.length-1) last=v;
+      if(idx===weeks.length-2) prev=v;
+      tb+='<td style="text-align:right">'+(r==null?'<span class="muted">-</span>':r.toFixed(1)+'%')+'</td>';
+    });
+    tb+='<td style="text-align:right">'+dMom(last,prev)+'</td></tr>';
+  });
+  document.getElementById('weekTable').innerHTML = th+tb+'</tbody></table>';
+
+  // Top 达人 / 直播间
+  const totalDay = day[0];
+  const alist = (ex.anchors||[]).map(a=>{
+    const dv=a.daily||{};
+    return {name:a.name, day:(dv[LATEST]||[0])[0], prev:(dv[PREV]||[0])[0],
+            wk:dSum(dv,wStart,LATEST)[0], mo:dSum(dv,mStart,LATEST)[0]};
+  }).filter(x=>x.day>0).sort((a,b)=>b.day-a.day).slice(0,10);
+  let ah='<table><thead><tr><th>#</th><th>达人 / 直播间</th><th style="text-align:right">日销售额</th>'+
+    '<th style="text-align:right">日环比</th><th style="text-align:right">占当日</th>'+
+    '<th style="text-align:right">周累计</th><th style="text-align:right">月累计</th><th>趋势</th></tr></thead><tbody>';
+  alist.forEach((x,i)=>{
+    const sh = totalDay? x.day/totalDay*100 : 0;
+    ah+='<tr><td>'+(i+1)+'</td><td class="name">'+x.name+'</td>'+
+      '<td style="text-align:right">'+money(x.day)+'</td>'+
+      '<td style="text-align:right">'+dMom(x.day,x.prev)+'</td>'+
+      '<td style="text-align:right">'+sh.toFixed(1)+'%</td>'+
+      '<td style="text-align:right">'+money(x.wk)+'</td>'+
+      '<td style="text-align:right">'+money(x.mo)+'</td>'+
+      '<td>'+dTag(sh>=5?100:(sh>=2?85:60))+'</td></tr>';
+  });
+  document.getElementById('anchorTable').innerHTML = ah+'</tbody></table>';
+
+  // Top 商品
+  const imap={};
+  (DATA.groups||[]).forEach(g=>{
+    if(DGROUPS.indexOf(g.name)<0) return;
+    const ids=g.item_daily||{};
+    for(const iid in ids){
+      const dv=ids[iid];
+      let d=0,w=0,m=0;
+      for(const k in dv){
+        if(k===LATEST) d+=dv[k][0];
+        if(k>=wStart && k<=LATEST) w+=dv[k][0];
+        if(k>=mStart && k<=LATEST) m+=dv[k][0];
+      }
+      if(d<=0) continue;
+      const info=(g.top_items||[]).find(t=>t.item_id===iid)||{};
+      imap[g.name+'|'+iid]={name:info.name||iid, group:g.name, day:d, wk:w, mo:m};
+    }
+  });
+  const ilist=Object.keys(imap).map(k=>imap[k]).sort((a,b)=>b.day-a.day).slice(0,10);
+  const medal=['🥇','🥈','🥉'];
+  let ih2='<table><thead><tr><th>排名</th><th>商品名称</th><th>品线</th>'+
+    '<th style="text-align:right">日销售额</th><th style="text-align:right">占当日</th>'+
+    '<th style="text-align:right">周累计</th><th style="text-align:right">月累计</th></tr></thead><tbody>';
+  ilist.forEach((x,i)=>{
+    const sh = totalDay? x.day/totalDay*100 : 0;
+    ih2+='<tr><td>'+(medal[i]||(i+1))+'</td><td class="name">'+x.name+'</td><td>'+x.group+'</td>'+
+      '<td style="text-align:right">'+money(x.day)+'</td>'+
+      '<td style="text-align:right">'+sh.toFixed(1)+'%</td>'+
+      '<td style="text-align:right">'+money(x.wk)+'</td>'+
+      '<td style="text-align:right">'+money(x.mo)+'</td></tr>';
+  });
+  document.getElementById('itemTable').innerHTML = ih2+'</tbody></table>';
+}
+
+document.getElementById('viewSeg').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  [...e.currentTarget.children].forEach(x=>x.classList.toggle('on', x===b));
+  VIEW = b.dataset.v;
+  document.getElementById('viewChannel').style.display = VIEW==='channel'?'':'none';
+  document.getElementById('viewDaily').style.display   = VIEW==='daily'?'':'none';
+  document.getElementById('channelSeg').style.visibility = VIEW==='channel'?'visible':'hidden';
+  if(VIEW==='daily') renderDaily();
+});
+
 renderHeader();
 setRangeInputs();
 renderSales();
@@ -405,6 +641,17 @@ def main():
     data_path = args.data or os.path.join(BASE, 'dashboard_data.json')
     out_path = args.out or os.path.join(BASE, 'dashboard.html')
     data = json.load(open(data_path, encoding='utf-8'))
+    # 日报视图需要的数据（订单量 + 达人日明细），来自 build_dashboard_data.py 的 daily_extra.json
+    extra_path = os.path.join(BASE, 'daily_extra.json')
+    if os.path.exists(extra_path):
+        try:
+            extra = json.load(open(extra_path, encoding='utf-8'))
+            anchors = extra.get('anchors') or []
+            anchors.sort(key=lambda a: -sum(v[0] for v in (a.get('daily') or {}).values()))
+            extra['anchors'] = anchors[:80]
+            data['extra'] = extra
+        except Exception as e:
+            print('  [警告] daily_extra.json 读取失败:', type(e).__name__)
     html = TEMPLATE.replace('/*__DATA__*/', json.dumps(data, ensure_ascii=False))
     open(out_path, 'w', encoding='utf-8').write(html)
     print('已生成:', out_path, '(%.1f KB)' % (len(html.encode('utf-8')) / 1024))
