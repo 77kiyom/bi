@@ -62,6 +62,14 @@ VIDEO_TARGETS = {
 # 短视频组只有抖音渠道 → 视频号不含短视频
 VIDEO_GROUPS = ['家纺', '家具百货组', '服配', '服配-羽绒']
 
+# 快手渠道目标：仅服配-羽绒有（全渠道 753.94 万 = 抖音 300 + 快手 300 + 视频号 153.94）
+KUAISHOU_TARGETS = {
+    '家纺':       {'week': None, 'month': None, 'quarter': None},
+    '家具百货组': {'week': None, 'month': None, 'quarter': None},
+    '服配':       {'week': None, 'month': None, 'quarter': None},
+    '服配-羽绒':  {'week': 230769, 'month': 1000000, 'quarter': 3000000},
+}
+
 
 def _num(v):
     if v is None:
@@ -170,6 +178,9 @@ def main():
             continue
         if row[ii] not in items:
             continue
+        # 剔除小红书订单（抖音明细里 店铺='小红书' 的行属于小红书渠道，不计入抖音）
+        if row[shop_idx] == '小红书':
+            continue
         a = row[ai]
         g = combo_group.get((a, row[shop_idx]), '')
         s = _num(row[si]); t = _num(row[ti]); q = _num(row[qi])
@@ -274,12 +285,13 @@ def main():
 
     # ===== 视频号 / 小红书渠道 =====
     video_out = None
+    kuaishou_out = None
     vp = os.path.join(BASE, 'video_data.json')
     if os.path.exists(vp):
         v = json.load(open(vp, encoding='utf-8'))
         chs = v.get('channels') or {}
 
-        def _build_channel(chdata, order):
+        def _build_channel(chdata, order, targets):
             res = []
             for gname in order:
                 daily = {}
@@ -316,13 +328,14 @@ def main():
                     'item_daily': {iid: {k: [round(x[0], 2), 0.0, round(x[2])]
                                          for k, x in sorted(d['daily'].items())}
                                    for iid, d in item_daily.items()},
-                    'target': VIDEO_TARGETS.get(gname, {'week': None, 'month': None, 'quarter': None}),
+                    'target': (targets or {}).get(gname, {'week': None, 'month': None, 'quarter': None}),
                 })
             return res
 
-        vgroups = _build_channel(chs.get('视频号', {}), VIDEO_GROUPS)
-        xhs_groups = _build_channel(chs.get('小红书', {}), ['家具百货组'])
+        vgroups = _build_channel(chs.get('视频号', {}), VIDEO_GROUPS, VIDEO_TARGETS)
+        xhs_groups = _build_channel(chs.get('小红书', {}), ['家具百货组'], None)
         xhs_g = xhs_groups[0] if xhs_groups else None
+        ks_groups = _build_channel(chs.get('快手', {}), VIDEO_GROUPS, KUAISHOU_TARGETS)
 
         # 达成率：家具百货组 = 视频号 + 小红书 合计（目标也是合计目标）
         vach = []
@@ -344,7 +357,17 @@ def main():
         video_out = {'meta': chs.get('视频号', {}).get('meta'),
                      'groups': vgroups, 'xhs': xhs_g, 'ach': vach}
 
-    out = {'meta': meta, 'groups': groups_out, 'ach': ach_out, 'video': video_out}
+        ks_ach = []
+        for g in ks_groups:
+            ks_ach.append({'name': g['name'], 'members': [g['name']], 'target': g['target'],
+                           'actual': {'week_cur': g['week_cur'][0], 'week_prev': g['week_prev'][0],
+                                      'month': g['month'][0], 'quarter': g['quarter'][0]},
+                           'split': None})
+        kuaishou_out = {'meta': chs.get('快手', {}).get('meta'),
+                        'groups': ks_groups, 'ach': ks_ach}
+
+    out = {'meta': meta, 'groups': groups_out, 'ach': ach_out,
+           'video': video_out, 'kuaishou': kuaishou_out}
     json.dump(out, open(out_path, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     print('已生成:', out_path)
     print('  数据区间: %s ~ %s' % (meta['data_from'], meta['data_to']))

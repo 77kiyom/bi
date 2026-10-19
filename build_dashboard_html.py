@@ -99,7 +99,7 @@ TEMPLATE = r"""<!DOCTYPE html>
   <div class="toolbar">
     <div class="seg" id="channelSeg">
       <button data-c="抖音" class="on">抖音</button>
-      <button data-c="快手" disabled title="待接入">快手</button>
+      <button data-c="快手">快手</button>
       <button data-c="视频号">视频号</button>
     </div>
   </div>
@@ -195,10 +195,15 @@ function groupsData(){
     });
     return out;
   }
+  if(CH==='快手') return (DATA.kuaishou&&DATA.kuaishou.groups)||[];
   return DATA.groups||[];
 }
-function achData(){ return CH==='视频号' ? ((DATA.video&&DATA.video.ach)||[]) : (DATA.ach||[]); }
-function topThreshold(){ return CH==='视频号' ? 1000 : 10000; }
+function achData(){
+  if(CH==='视频号') return (DATA.video&&DATA.video.ach)||[];
+  if(CH==='快手') return (DATA.kuaishou&&DATA.kuaishou.ach)||[];
+  return DATA.ach||[];
+}
+function topThreshold(){ return CH==='抖音' ? 10000 : 1000; }
 
 function sumRange(g,d0,d1){
   let a=0,t=0,q=0;
@@ -229,7 +234,8 @@ function topInRange(g,d0,d1){
 
 function renderHeader(){
   const m=DATA.meta;
-  const vm=(CH==='视频号'&&DATA.video&&DATA.video.meta)?DATA.video.meta:null;
+  const vm=(CH==='视频号'&&DATA.video&&DATA.video.meta)?DATA.video.meta
+          :(CH==='快手'&&DATA.kuaishou&&DATA.kuaishou.meta)?DATA.kuaishou.meta:null;
   const rng=vm?`${vm.data_from} ~ ${vm.data_to}`:`${m.data_from} ~ ${m.data_to}`;
   const upd=vm?vm.updated_at:m.updated_at;
   document.getElementById('subline').textContent =
@@ -384,6 +390,7 @@ setRangeInputs();
 renderSales();
 renderAch();
 if(!DATA.video){ const vb=document.querySelector('#channelSeg button[data-c="视频号"]'); if(vb){ vb.disabled=true; vb.title='暂无视频号数据'; } }
+if(!DATA.kuaishou){ const kb=document.querySelector('#channelSeg button[data-c="快手"]'); if(kb){ kb.disabled=true; kb.title='暂无快手数据'; } }
 </script>
 </body>
 </html>
