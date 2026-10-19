@@ -17,7 +17,7 @@ TEMPLATE = r"""<!DOCTYPE html>
 <title>抖快渠道销售看板 · Q4</title>
 <style>
   :root{
-    --brand:#2F5597; --brand2:#4A7BC8; --bg:#f4f6fa; --card:#ffffff;
+    --brand:#4f46e5; --brand2:#6366f1; --bg:#f4f6fa; --card:#ffffff;
     --line:#e3e8f0; --txt:#1f2733; --muted:#7b8794; --up:#c0392b; --down:#1e8e5a;
     --amber:#c77c00;
   }
@@ -27,7 +27,7 @@ TEMPLATE = r"""<!DOCTYPE html>
     -webkit-font-smoothing:antialiased}
   .wrap{max-width:1280px;margin:0 auto;padding:22px 20px 60px}
   header{display:flex;flex-wrap:wrap;align-items:baseline;gap:14px;margin-bottom:16px}
-  header h1{margin:0;font-size:22px;letter-spacing:.5px;color:var(--brand)}
+  header h1{margin:0;font-size:22px;letter-spacing:.5px;color:var(--txt)}
   header .sub{font-size:12.5px;color:var(--muted)}
   .toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:16px}
   .seg{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:9px;overflow:hidden}
@@ -36,6 +36,7 @@ TEMPLATE = r"""<!DOCTYPE html>
   .seg button:last-child{border-right:0}
   .seg button.on{background:var(--brand);color:#fff;font-weight:600}
   .seg button:disabled{color:#c3cad4;cursor:not-allowed}
+  .seg.daily-mode .ch-btn{display:none}
   .filterbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;
     background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:16px}
   .filterbar .lb{font-size:13px;color:var(--muted)}
@@ -44,7 +45,7 @@ TEMPLATE = r"""<!DOCTYPE html>
     font-family:inherit;color:var(--txt);background:#fff}
   .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;
     padding:16px 18px;margin-bottom:16px;box-shadow:0 1px 2px rgba(31,39,51,.04)}
-  .panel h2{margin:0 0 12px;font-size:15px;color:var(--brand);font-weight:700;
+  .panel h2{margin:0 0 12px;font-size:15px;color:var(--txt);font-weight:700;
     display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .panel h2 small{font-weight:400;color:var(--muted);font-size:12px}
   .prog-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
@@ -63,7 +64,8 @@ TEMPLATE = r"""<!DOCTYPE html>
   .card .extra b{font-weight:600}
   table{width:100%;border-collapse:collapse;font-size:13px}
   th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
-  th{background:#f7f9fc;color:#54606e;font-weight:600;font-size:12.5px;white-space:nowrap}
+  th{background:#f6f7fd;color:#4a5160;font-weight:700;font-size:12.5px;white-space:nowrap;
+    border-bottom:2px solid #e7e9f2;letter-spacing:.2px}
   th:first-child,td:first-child{text-align:left}
   tbody tr:hover{background:#fafcff}
   td.name{font-weight:600;color:var(--txt)}
@@ -117,19 +119,18 @@ TEMPLATE = r"""<!DOCTYPE html>
   <div class="toolbar">
     <div class="seg" id="channelSeg">
       <button data-v="daily" id="btnDaily">日报</button>
-      <button data-v="channel" data-c="抖音" class="on">抖音</button>
-      <button data-v="channel" data-c="快手">快手</button>
-      <button data-v="channel" data-c="视频号">视频号</button>
+      <button data-v="channel" data-c="抖音" class="on ch-btn">抖音</button>
+      <button data-v="channel" data-c="快手" class="ch-btn">快手</button>
+      <button data-v="channel" data-c="视频号" class="ch-btn">视频号</button>
     </div>
   </div>
-
-  <div id="viewChannel">
 
   <div class="panel">
     <h2>⏱️ 时间进度 <small id="progNote"></small></h2>
     <div class="prog-grid" id="progGrid"></div>
   </div>
 
+  <div id="viewChannel">
   <div class="filterbar">
     <span class="lb">日期区间</span>
     <div class="seg" id="salesSeg">
@@ -153,6 +154,15 @@ TEMPLATE = r"""<!DOCTYPE html>
 
   <div class="panel">
     <h2>🔥 Top 单品 <small id="topNote">销售额 ≥ 1 万</small></h2>
+    <div class="filterbar" style="margin-bottom:12px">
+      <span class="lb">分组</span>
+      <div class="seg" id="topGroupSeg"></div>
+      <span class="lb" style="margin-left:auto">排序</span>
+      <div class="seg" id="topSortSeg">
+        <button data-s="amt" class="on">销售额</button>
+        <button data-s="qty">销量</button>
+      </div>
+    </div>
     <div id="topItems"></div>
   </div>
 
@@ -335,21 +345,51 @@ function renderSales(){
      <tr class="tot-row"><td>合计</td><td>${money(tAll[0])}</td><td>${money(tAll[1])}</td><td>${fmt(tAll[2])}</td>
       <td colspan="4" class="muted">—</td></tr></tbody></table>`;
 
-  let html='';
-  groupsData().forEach(g=>{
-    const items=topInRange(g,d0,d1);
-    html += `<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;color:var(--brand);margin-bottom:6px">
-      ${g.name} <span class="tag">${items.length} 个品</span></div>`;
-    if(!items.length){ html += `<div class="empty">该区间内无销售额 ≥ 1 万的单品</div></div>`; return; }
-    html += `<table><thead><tr><th>商品名称</th><th>BU小组</th><th>销售额</th><th>销量</th></tr></thead><tbody>`;
-    items.forEach(it=>{
-      html += `<tr><td>${it.name}</td><td><span class="tag">${it.group_name||'-'}</span></td>
-        <td>${money(it.amt)}</td><td>${fmt(it.qty)}</td></tr>`;
-    });
-    html += `</tbody></table></div>`;
-  });
-  document.getElementById('topItems').innerHTML = html;
+  renderTop();
 }
+
+let topGroup='all', topSort='amt';
+function renderTop(){
+  const d0=salesRange[0], d1=salesRange[1];
+  const all = groupsData();
+  const names = all.map(g=>g.name);
+  if(topGroup!=='all' && names.indexOf(topGroup)<0) topGroup='all';
+  const gseg=document.getElementById('topGroupSeg');
+  if(gseg){
+    gseg.innerHTML = ['all'].concat(names).map(n=>
+      '<button data-g="'+n+'"'+(n===topGroup?' class="on"':'')+'>'+(n==='all'?'全部':n)+'</button>').join('');
+  }
+  const gs = topGroup==='all' ? all : all.filter(g=>g.name===topGroup);
+  let rows=[];
+  gs.forEach(g=>{
+    topInRange(g,d0,d1).forEach(it=>{
+      rows.push({name:it.name, group:it.group_name||'-', gname:g.name, amt:it.amt, qty:it.qty});
+    });
+  });
+  rows.sort((a,b)=> topSort==='qty' ? (b.qty-a.qty) : (b.amt-a.amt));
+  const el=document.getElementById('topItems');
+  if(!rows.length){
+    el.innerHTML = '<div class="empty">该区间内没有符合条件的单品（销售额 ≥ '+(topThreshold()>=10000?'1 万':'1000')+'）</div>';
+    return;
+  }
+  let html='<table><thead><tr><th>#</th><th>商品名称</th><th>所属小组</th><th>渠道组</th>'+
+    '<th style="text-align:right">销售额</th><th style="text-align:right">销量</th></tr></thead><tbody>';
+  rows.forEach((it,i)=>{
+    html+='<tr><td>'+(i+1)+'</td><td>'+it.name+'</td><td><span class="tag">'+it.group+'</span></td>'+
+      '<td>'+it.gname+'</td><td style="text-align:right">'+money(it.amt)+'</td>'+
+      '<td style="text-align:right">'+fmt(it.qty)+'</td></tr>';
+  });
+  el.innerHTML = html+'</tbody></table>';
+}
+document.getElementById('topGroupSeg').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  topGroup=b.dataset.g; renderTop();
+});
+document.getElementById('topSortSeg').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  [...e.currentTarget.children].forEach(x=>x.classList.toggle('on', x===b));
+  topSort=b.dataset.s; renderTop();
+});
 
 function achRange(p){
   const m=DATA.meta;
@@ -409,13 +449,21 @@ function setRangeInputs(){
 document.getElementById('channelSeg').addEventListener('click', e=>{
   const b=e.target.closest('button'); if(!b || b.disabled) return;
   const v = b.dataset.v || 'channel';
-  if(v==='daily' && !DATA.extra) return;
-  if(v==='channel' && b.dataset.c==='视频号' && !DATA.video) return;
-  [...e.currentTarget.children].forEach(x=>x.classList.toggle('on', x===b));
-  VIEW = v;
-  if(v==='channel') CH = b.dataset.c;
+  const seg = e.currentTarget;
+  if(v==='daily'){
+    if(!DATA.extra) return;
+    VIEW = (VIEW==='daily') ? 'channel' : 'daily';
+  } else {
+    if(b.dataset.c==='视频号' && !DATA.video) return;
+    VIEW = 'channel'; CH = b.dataset.c;
+  }
+  [...seg.children].forEach(x=>{
+    if(x.dataset.v==='daily') x.classList.toggle('on', VIEW==='daily');
+    else x.classList.toggle('on', VIEW==='channel' && x.dataset.c===CH);
+  });
+  seg.classList.toggle('daily-mode', VIEW==='daily');
   document.getElementById('viewChannel').style.display = VIEW==='channel'?'':'none';
-  document.getElementById('viewDaily').style.display   = VIEW==='daily'?'':'none';
+  document.getElementById('viewDaily').style.display = VIEW==='daily'?'':'none';
   if(VIEW==='daily') renderDaily();
   else { renderHeader(); renderSales(); renderAch(); }
 });
@@ -553,6 +601,21 @@ function renderDaily(){
     svg+='<polygon points="'+PL+','+(PT+ih)+' '+pts.join(' ')+' '+(W-PR)+','+(PT+ih)+'" fill="url(#tg'+si+')"/>';
     svg+='<polyline points="'+pts.join(' ')+'" fill="none" stroke="'+s.color+'" stroke-width="2.5" stroke-linejoin="round"/>';
     s.data.forEach((v,i)=>{ svg+='<circle cx="'+xf(i)+'" cy="'+yf(v)+'" r="3" fill="'+s.color+'"/>'; });
+  });
+  // 悬停：整列显示当天各品线具体销售额
+  const bw = iw/Math.max(days.length-1,1);
+  const fmtY = v => (v*10000).toLocaleString('zh-CN',{maximumFractionDigits:0});
+  days.forEach((d,i)=>{
+    const x0 = Math.max(PL, xf(i)-bw/2);
+    const w0 = Math.min(bw, W-PR-x0);
+    const tip = d+' 销售额 ｜ '+series.map(s=>s.name+' '+fmtY(s.data[i])+' 元').join(' ｜ ');
+    svg+='<rect x="'+x0+'" y="'+PT+'" width="'+w0+'" height="'+ih+'" fill="transparent"><title>'+tip+'</title></rect>';
+  });
+  series.forEach(s=>{
+    s.data.forEach((v,i)=>{
+      svg+='<circle cx="'+xf(i)+'" cy="'+yf(v)+'" r="9" fill="transparent"><title>'+
+        days[i]+' · '+s.name+'：'+fmtY(v)+' 元</title></circle>';
+    });
   });
   svg+='</svg>';
   let legend='<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--muted)">';
