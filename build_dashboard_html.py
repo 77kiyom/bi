@@ -313,7 +313,7 @@ function renderAch(){
   });
   document.getElementById('targetTable').innerHTML =
     `<table><thead><tr><th>组</th><th>达成率</th><th>目标</th><th>达成</th></tr></thead><tbody>${trows}</tbody></table>
-     <div class="empty">目标为抖音渠道；「服配」= 服配 + 服配-羽绒 业绩合计；「待填」表示尚未设目标。</div>`;
+     <div class="empty">目标为抖音渠道；各组分设目标（服配 / 服配-羽绒 各自独立）；「待填」表示尚未设目标。</div>`;
   document.getElementById('achChart').innerHTML = chart +
     `<div class="muted" style="font-size:11.5px;margin-top:2px">灰线 = 100% 目标线（进度条满格为 150%）；鼠标悬停可看具体达成率</div>`;
 }
