@@ -272,55 +272,77 @@ def main():
         ach_out.append({'name': disp, 'members': members, 'target': target,
                         'actual': {k: round(v, 2) for k, v in actual.items()}})
 
-    # ===== 视频号渠道 =====
+    # ===== 视频号 / 小红书渠道 =====
     video_out = None
     vp = os.path.join(BASE, 'video_data.json')
     if os.path.exists(vp):
         v = json.load(open(vp, encoding='utf-8'))
-        vgroups = []
-        for gname in VIDEO_GROUPS:
-            daily = {}
-            for date, gs in (v.get('daily') or {}).items():
-                if gname in gs:
-                    daily[date] = gs[gname]
-            item_daily = {}
-            for row in (v.get('items') or []):
-                date, iid, name, g, amt, qty = row
-                if g != gname:
-                    continue
-                d = item_daily.setdefault(iid, {'name': name, 'daily': {}})
-                d['daily'][date] = [amt, 0.0, qty]
-            top = []
-            for iid, d in item_daily.items():
-                tot = sum(x[0] for x in d['daily'].values())
-                if tot >= 1000:
-                    top.append({'item_id': iid, 'name': d['name'], 'group_name': gname,
-                                'amt': round(tot, 2),
-                                'qty': round(sum(x[2] for x in d['daily'].values()))})
-            top.sort(key=lambda x: -x['amt'])
-            vgroups.append({
-                'name': gname, 'group_names': [gname], 'mode': '视频号',
-                'daily': {k: [round(x[0], 2), round(x[1], 2), round(x[2])]
-                          for k, x in sorted(daily.items())},
-                'week_cur': [round(x, 2) for x in rng_sum(daily, w_sun.isoformat(), w_sat.isoformat())],
-                'week_prev': [round(x, 2) for x in rng_sum(
-                    daily,
-                    (w_sun - datetime.timedelta(days=7)).isoformat(),
-                    (w_sat - datetime.timedelta(days=7)).isoformat())],
-                'month': [round(x, 2) for x in rng_sum(daily, m_start.isoformat(), m_end.isoformat())],
-                'quarter': [round(x, 2) for x in rng_sum(daily, Q4_START.isoformat(), Q4_END.isoformat())],
-                'top_items': top,
-                'item_daily': {iid: {k: [round(x[0], 2), 0.0, round(x[2])]
-                                     for k, x in sorted(d['daily'].items())}
-                               for iid, d in item_daily.items()},
-                'target': VIDEO_TARGETS.get(gname, {'week': None, 'month': None, 'quarter': None}),
-            })
+        chs = v.get('channels') or {}
+
+        def _build_channel(chdata, order):
+            res = []
+            for gname in order:
+                daily = {}
+                for date, gs in (chdata.get('daily') or {}).items():
+                    if gname in gs:
+                        daily[date] = gs[gname]
+                item_daily = {}
+                for row in (chdata.get('items') or []):
+                    date, iid, name, g, amt, qty = row
+                    if g != gname:
+                        continue
+                    d = item_daily.setdefault(iid, {'name': name, 'daily': {}})
+                    d['daily'][date] = [amt, 0.0, qty]
+                top = []
+                for iid, d in item_daily.items():
+                    tot = sum(x[0] for x in d['daily'].values())
+                    if tot >= 1000:
+                        top.append({'item_id': iid, 'name': d['name'], 'group_name': gname,
+                                    'amt': round(tot, 2),
+                                    'qty': round(sum(x[2] for x in d['daily'].values()))})
+                top.sort(key=lambda x: -x['amt'])
+                res.append({
+                    'name': gname, 'group_names': [gname],
+                    'daily': {k: [round(x[0], 2), round(x[1], 2), round(x[2])]
+                              for k, x in sorted(daily.items())},
+                    'week_cur': [round(x, 2) for x in rng_sum(daily, w_sun.isoformat(), w_sat.isoformat())],
+                    'week_prev': [round(x, 2) for x in rng_sum(
+                        daily,
+                        (w_sun - datetime.timedelta(days=7)).isoformat(),
+                        (w_sat - datetime.timedelta(days=7)).isoformat())],
+                    'month': [round(x, 2) for x in rng_sum(daily, m_start.isoformat(), m_end.isoformat())],
+                    'quarter': [round(x, 2) for x in rng_sum(daily, Q4_START.isoformat(), Q4_END.isoformat())],
+                    'top_items': top,
+                    'item_daily': {iid: {k: [round(x[0], 2), 0.0, round(x[2])]
+                                         for k, x in sorted(d['daily'].items())}
+                                   for iid, d in item_daily.items()},
+                    'target': VIDEO_TARGETS.get(gname, {'week': None, 'month': None, 'quarter': None}),
+                })
+            return res
+
+        vgroups = _build_channel(chs.get('视频号', {}), VIDEO_GROUPS)
+        xhs_groups = _build_channel(chs.get('小红书', {}), ['家具百货组'])
+        xhs_g = xhs_groups[0] if xhs_groups else None
+
+        # 达成率：家具百货组 = 视频号 + 小红书 合计（目标也是合计目标）
         vach = []
         for g in vgroups:
+            act = {'week_cur': g['week_cur'][0], 'week_prev': g['week_prev'][0],
+                   'month': g['month'][0], 'quarter': g['quarter'][0]}
+            split = None
+            if g['name'] == '家具百货组' and xhs_g:
+                split = {
+                    '视频号': dict(act),
+                    '小红书': {'week_cur': xhs_g['week_cur'][0], 'week_prev': xhs_g['week_prev'][0],
+                               'month': xhs_g['month'][0], 'quarter': xhs_g['quarter'][0]},
+                }
+                for k in list(act.keys()):
+                    act[k] = act[k] + split['小红书'][k]
             vach.append({'name': g['name'], 'members': [g['name']], 'target': g['target'],
-                         'actual': {'week_cur': g['week_cur'][0], 'week_prev': g['week_prev'][0],
-                                    'month': g['month'][0], 'quarter': g['quarter'][0]}})
-        video_out = {'meta': v.get('meta'), 'groups': vgroups, 'ach': vach}
+                         'actual': act, 'split': split})
+
+        video_out = {'meta': chs.get('视频号', {}).get('meta'),
+                     'groups': vgroups, 'xhs': xhs_g, 'ach': vach}
 
     out = {'meta': meta, 'groups': groups_out, 'ach': ach_out, 'video': video_out}
     json.dump(out, open(out_path, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)

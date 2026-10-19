@@ -53,7 +53,7 @@ TEMPLATE = r"""<!DOCTYPE html>
   .prog-item .pt span{color:var(--muted)}
   .bar{height:9px;background:#eef1f6;border-radius:6px;overflow:hidden}
   .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--brand2),var(--brand));border-radius:6px}
-  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:16px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;
     box-shadow:0 1px 2px rgba(31,39,51,.04);position:relative;overflow:hidden}
   .card::before{content:"";position:absolute;left:0;top:0;width:4px;height:100%;background:var(--brand)}
@@ -181,7 +181,22 @@ let salesRange = presetRange('week_cur');
 let achPeriod = 'week_cur';
 let achSort = 'default';
 let CH = '抖音';
-function groupsData(){ return CH==='视频号' ? ((DATA.video&&DATA.video.groups)||[]) : (DATA.groups||[]); }
+function groupsData(){
+  if(CH==='视频号'){
+    const v=(DATA.video&&DATA.video.groups)||[];
+    const out=[];
+    v.forEach(g=>{
+      if(g.name==='家具百货组'){
+        out.push(Object.assign({}, g, {name:'家具百货组（视频号）'}));
+        if(DATA.video.xhs) out.push(Object.assign({}, DATA.video.xhs, {name:'家具百货组（小红书）'}));
+      } else {
+        out.push(g);
+      }
+    });
+    return out;
+  }
+  return DATA.groups||[];
+}
 function achData(){ return CH==='视频号' ? ((DATA.video&&DATA.video.ach)||[]) : (DATA.ach||[]); }
 function topThreshold(){ return CH==='视频号' ? 1000 : 10000; }
 
@@ -310,8 +325,10 @@ function renderAch(){
     const rv=(tg&&tg>0)? r : 0;
     const w=Math.min(rv,150)/150*100;
     const col=rv>=100?'var(--down)':(rv>=80?'var(--amber)':'var(--up)');
+    const sp=(a.split&&a.split['视频号']&&a.split['小红书'])
+      ? `（视频号 ${exact(a.split['视频号'][p])} + 小红书 ${exact(a.split['小红书'][p])}）` : '';
     const tip=(tg&&tg>0)
-      ? `${a.name} · 达成率 ${r.toFixed(1)}%（达成 ${exact(act)} 元 / 目标 ${exact(tg)} 元）`
+      ? `${a.name} · 达成率 ${r.toFixed(1)}%${sp}（达成 ${exact(act)} 元 / 目标 ${exact(tg)} 元）`
       : `${a.name} · 未设目标`;
     chart += `<div class="row" title="${tip}"><div class="lbl">${a.name}</div>
       <div class="track"><div class="fill" style="width:${w}%;background:${col}"></div>
