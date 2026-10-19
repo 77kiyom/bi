@@ -101,12 +101,16 @@ TEMPLATE = r"""<!DOCTYPE html>
   .tag2.g{background:#d1fae5;color:#065f46}
   .tag2.y{background:#fef3c7;color:#92400e}
   .tag2.r{background:#fee2e2;color:#991b1b}
+  .d-row2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+  .pbar-label{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:9px;margin-bottom:4px}
+  .kpi .kv{font-variant-numeric:tabular-nums}
+  @media(max-width:900px){ .d-row2{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1>抖快渠道销售看板</h1>
+    <h1 id="h1">抖音居家商务组</h1>
     <div class="sub" id="subline"></div>
   </header>
 
@@ -122,7 +126,7 @@ TEMPLATE = r"""<!DOCTYPE html>
   <div id="viewChannel">
 
   <div class="panel">
-    <h2>时间进度 <small id="progNote"></small></h2>
+    <h2>⏱️ 时间进度 <small id="progNote"></small></h2>
     <div class="prog-grid" id="progGrid"></div>
   </div>
 
@@ -143,17 +147,17 @@ TEMPLATE = r"""<!DOCTYPE html>
   <div class="cards" id="cards"></div>
 
   <div class="panel">
-    <h2>销售额明细 <small id="salesNote"></small></h2>
+    <h2>📋 销售额明细 <small id="salesNote"></small></h2>
     <div id="dailyTable"></div>
   </div>
 
   <div class="panel">
-    <h2>Top 单品 <small id="topNote">销售额 ≥ 1 万</small></h2>
+    <h2>🔥 Top 单品 <small id="topNote">销售额 ≥ 1 万</small></h2>
     <div id="topItems"></div>
   </div>
 
   <div class="panel">
-    <h2>达成率 <small id="targetNote">抖音渠道</small></h2>
+    <h2>🎯 达成率 <small id="targetNote">抖音渠道</small></h2>
     <div class="filterbar" style="margin-bottom:14px">
       <div class="seg" id="achSeg">
         <button data-p="week_cur" class="on">本周</button>
@@ -177,20 +181,22 @@ TEMPLATE = r"""<!DOCTYPE html>
   <!-- ════ 日报视图 ════ -->
   <div id="viewDaily" style="display:none">
     <div class="cards5" id="kpiGrid" style="margin-bottom:16px"></div>
-    <div class="panel">
-      <h2>近 7 天销售额趋势 <small id="trendNote"></small></h2>
-      <div id="trendChart"></div>
+    <div class="d-row2">
+      <div class="panel" style="margin:0">
+        <h2>📉 近 7 天销售额趋势 <small>（万元）</small></h2>
+        <div id="trendChart"></div>
+      </div>
+      <div class="panel" style="margin:0">
+        <h2>🔥 爆品周完成率 <small>（分品线）</small></h2>
+        <div id="boomTable"></div>
+      </div>
     </div>
-    <div class="panel">
-      <h2>各品线周达成率 <small>近 4 周</small></h2>
-      <div id="weekTable"></div>
-    </div>
-    <div class="panel">
-      <h2>Top 达人 / 直播间 <small>按当日销售额</small></h2>
+    <div class="panel" style="margin-top:16px">
+      <h2>🏷️ Top 达人 / 直播间 <small>按当日销售额</small></h2>
       <div id="anchorTable"></div>
     </div>
     <div class="panel">
-      <h2>Top 商品 <small>按当日销售额</small></h2>
+      <h2>🎯 Top 商品 <small>按当日销售额</small></h2>
       <div id="itemTable"></div>
     </div>
   </div>
@@ -474,6 +480,8 @@ function renderDaily(){
   const LATEST = (ex.meta && ex.meta.data_to) || (DATA.meta && DATA.meta.data_to);
   const grid = document.getElementById('kpiGrid');
   if(!LATEST){ grid.innerHTML='<div class="muted" style="padding:20px">暂无日报数据</div>'; return; }
+  document.getElementById('subline').textContent =
+    '日报 · 日报日期 '+LATEST+' · 更新于 '+((ex.meta&&ex.meta.updated_at)||(DATA.meta&&DATA.meta.updated_at)||'');
 
   const PREV = addDays(LATEST,-1);
   const wStart = addDays(LATEST, -new Date(LATEST).getUTCDay());
@@ -495,23 +503,24 @@ function renderDaily(){
   const tD = tW/7;
 
   const cards = [
-    {l:'📦 日总销售额', v:money(day[0]), m:dMom(day[0],dayP[0]), r:tD?day[0]/tD*100:null, tn:'日目标（周/7）'},
-    {l:'📋 日订单量',   v:fmt(orders),   m:dMom(orders,ordersP), r:null, tn:''},
-    {l:'📊 周累计销售额', v:money(wk[0]), m:dMom(wk[0],wkP[0]), r:tW?wk[0]/tW*100:null, tn:'周目标'},
-    {l:'📈 月累计销售额', v:money(mo[0]), m:dMom(mo[0],moP[0]), r:tM?mo[0]/tM*100:null, tn:'月目标'},
-    {l:'📆 季度累计销售额', v:money(qt[0]), m:dMom(qt[0],qtP[0]), r:tQ?qt[0]/tQ*100:null, tn:'季度目标'}
+    {l:'📦 日总销售额',   v:'¥'+fmt(day[0]),  ml:'环比昨日',     m:dMom(day[0],dayP[0]), r:tD?day[0]/tD*100:null, tn:'日目标完成率'},
+    {l:'📋 日订单量',     v:fmt(orders),      ml:'环比昨日',     m:dMom(orders,ordersP), r:null, tn:'日订单目标完成率'},
+    {l:'📊 周累计销售额', v:'¥'+fmt(wk[0]),   ml:'环比上周同期', m:dMom(wk[0],wkP[0]),   r:tW?wk[0]/tW*100:null, tn:'周目标完成率'},
+    {l:'📈 月累计销售额', v:'¥'+fmt(mo[0]),   ml:'环比上月同期', m:dMom(mo[0],moP[0]),   r:tM?mo[0]/tM*100:null, tn:'月目标完成率'},
+    {l:'📆 季度累计销售额', v:'¥'+fmt(qt[0]), ml:'环比上季度同期', m:dMom(qt[0],qtP[0]), r:tQ?qt[0]/tQ*100:null, tn:'季度目标完成率'}
   ];
   const ACC5 = ['#3b82f6','#10b981','#8b5cf6','#f97316','#14b8a6'];
   grid.innerHTML = cards.map((c,i)=>{
     const ac = ACC5[i%ACC5.length];
-    let p='';
-    if(c.r!=null){
-      p='<div class="pbar"><i style="width:'+Math.min(c.r,100).toFixed(1)+'%;background:'+ac+'"></i></div>'+
-        '<div class="ks" style="margin-top:5px;justify-content:space-between"><span>'+c.tn+'</span><b>'+
-        c.r.toFixed(1)+'%</b></div>';
-    }
-    return '<div class="kpi" style="border-left:4px solid '+ac+'"><div class="kl">'+c.l+'</div><div class="kv">'+c.v+
-      '</div><div class="ks" style="justify-content:space-between"><span>环比</span>'+c.m+'</div>'+p+'</div>';
+    const rv = c.r==null? 0 : Math.min(c.r,100);
+    const rt = c.r==null? '—' : c.r.toFixed(1)+'%';
+    return '<div class="kpi" style="border-left:4px solid '+ac+'">'+
+      '<div class="kl">'+c.l+'</div>'+
+      '<div class="kv">'+c.v+'</div>'+
+      '<div class="ks"><span>'+c.ml+'</span>'+c.m+'</div>'+
+      '<div class="pbar-label"><span>'+c.tn+'</span><span>'+rt+'</span></div>'+
+      '<div class="pbar"><i style="width:'+rv.toFixed(1)+'%;background:'+ac+'"></i></div>'+
+      '</div>';
   }).join('');
 
   // 趋势（近7天，4品线，内联 SVG）
@@ -526,15 +535,23 @@ function renderDaily(){
   maxV = maxV>0? maxV*1.15 : 1;
   const xf = i => PL + iw*i/(days.length-1);
   const yf = v => PT + ih - ih*(v/maxV);
-  let svg='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto">';
+  let svg='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto"><defs>';
+  series.forEach((s,si)=>{
+    svg+='<linearGradient id="tg'+si+'" x1="0" y1="0" x2="0" y2="1">'+
+      '<stop offset="0%" stop-color="'+s.color+'" stop-opacity=".20"/>'+
+      '<stop offset="100%" stop-color="'+s.color+'" stop-opacity="0"/></linearGradient>';
+  });
+  svg+='</defs>';
   for(let k=0;k<=4;k++){
     const v=maxV*k/4, yy=yf(v);
     svg+='<line x1="'+PL+'" y1="'+yy+'" x2="'+(W-PR)+'" y2="'+yy+'" stroke="#eef2f7"/>';
-    svg+='<text x="'+(PL-8)+'" y="'+(yy+4)+'" text-anchor="end" font-size="11" fill="#94a3b8">'+v.toFixed(0)+'</text>';
+    svg+='<text x="'+(PL-8)+'" y="'+(yy+4)+'" text-anchor="end" font-size="11" fill="#94a3b8">'+v.toFixed(0)+'w</text>';
   }
   days.forEach((d,i)=>{ svg+='<text x="'+xf(i)+'" y="'+(H-10)+'" text-anchor="middle" font-size="11" fill="#94a3b8">'+d.slice(5)+'</text>'; });
-  series.forEach(s=>{
-    svg+='<polyline points="'+s.data.map((v,i)=>xf(i)+','+yf(v)).join(' ')+'" fill="none" stroke="'+s.color+'" stroke-width="2.5" stroke-linejoin="round"/>';
+  series.forEach((s,si)=>{
+    const pts = s.data.map((v,i)=>xf(i)+','+yf(v));
+    svg+='<polygon points="'+PL+','+(PT+ih)+' '+pts.join(' ')+' '+(W-PR)+','+(PT+ih)+'" fill="url(#tg'+si+')"/>';
+    svg+='<polyline points="'+pts.join(' ')+'" fill="none" stroke="'+s.color+'" stroke-width="2.5" stroke-linejoin="round"/>';
     s.data.forEach((v,i)=>{ svg+='<circle cx="'+xf(i)+'" cy="'+yf(v)+'" r="3" fill="'+s.color+'"/>'; });
   });
   svg+='</svg>';
@@ -542,31 +559,25 @@ function renderDaily(){
   series.forEach(s=>{ legend+='<span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+s.color+';margin-right:5px"></i>'+s.name+'</span>'; });
   legend+='</div>';
   document.getElementById('trendChart').innerHTML = svg+legend;
-  document.getElementById('trendNote').textContent = '（'+days[0]+' ~ '+LATEST+'）';
 
-  // 各品线周达成率（近4周）
+  // 爆品周完成率（分品线）—— 数据待接入，保留表格位置
   const weeks=[]; let ws=wStart;
   for(let i=0;i<4;i++){ weeks.unshift(ws); ws=addDays(ws,-7); }
-  let th='<table><thead><tr><th>品线</th>';
-  weeks.forEach(w=>{ th+='<th style="text-align:right">'+w.slice(5)+'起</th>'; });
-  th+='<th style="text-align:right">周环比</th></tr></thead><tbody>';
-  let tb='';
-  DGROUPS.forEach(nm=>{
-    const g=(DATA.groups||[]).find(x=>x.name===nm); if(!g) return;
-    const tgt=((DATA.ach||[]).find(a=>a.name===nm)||{}).target||{};
-    const wt=tgt.week||0;
-    let last=null, prev=null;
-    tb+='<tr><td class="name">'+nm+'</td>';
-    weeks.forEach((w,idx)=>{
-      const v=dSum(g.daily,w,addDays(w,6))[0];
-      const r=wt? v/wt*100 : null;
-      if(idx===weeks.length-1) last=v;
-      if(idx===weeks.length-2) prev=v;
-      tb+='<td style="text-align:right">'+(r==null?'<span class="muted">-</span>':r.toFixed(1)+'%')+'</td>';
-    });
-    tb+='<td style="text-align:right">'+dMom(last,prev)+'</td></tr>';
+  const weekNo = s => {
+    const d = new Date(s+'T00:00:00Z');
+    const jan1 = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+    return Math.floor((d-jan1)/604800000)+1;
+  };
+  let bh='<table><thead><tr><th>品线</th>';
+  weeks.forEach(w=>{ bh+='<th style="text-align:right">第'+weekNo(w)+'周</th>'; });
+  bh+='<th style="text-align:right">周环比</th></tr></thead><tbody>';
+  ['家纺','家具百货组','服配','服配-羽绒'].forEach(nm=>{
+    bh+='<tr><td class="name">'+nm+'</td>';
+    for(let i=0;i<4;i++) bh+='<td style="text-align:right"><span class="muted">—</span></td>';
+    bh+='<td style="text-align:right"><span class="muted">—</span></td></tr>';
   });
-  document.getElementById('weekTable').innerHTML = th+tb+'</tbody></table>';
+  bh+='</tbody></table><div class="empty" style="margin-top:6px">爆品周完成率数据待接入（表格位置已保留）</div>';
+  document.getElementById('boomTable').innerHTML = bh;
 
   // Top 达人 / 直播间
   const totalDay = day[0];
