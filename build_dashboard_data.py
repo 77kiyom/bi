@@ -161,6 +161,8 @@ def main():
     dh = next(rr)
     di, ii, ai = dh.index('下单日期'), dh.index('item_id'), dh.index('主播ID')
     si, ti, qi = dh.index('销售额'), dh.index('含税收入_财务'), dh.index('销量')
+    oi = dh.index('order_id')
+    ani = dh.index('主播名称')
     shop_idx = [i for i, c in enumerate(dh) if c == '店铺'][0]
 
     # 结构: data[组名]['daily'][日期] = [amt, tax, qty]
@@ -171,6 +173,9 @@ def main():
                     'item_daily': defaultdict(lambda: defaultdict(lambda: [0.0, 0.0, 0.0]))}
              for name, *_ in GROUP_DEFS}
     all_dates = set()
+    # 日报用：按日订单量（去重 order_id） + 达人日明细
+    order_sets = defaultdict(set)
+    anchors = {}   # 主播名称 -> {'id':..., 'daily': {date: [amt, qty]}}
 
     for row in rr:
         dt = row[di]
@@ -185,6 +190,7 @@ def main():
         g = combo_group.get((a, row[shop_idx]), '')
         s = _num(row[si]); t = _num(row[ti]); q = _num(row[qi])
         all_dates.add(dt)
+        matched_main = False
         for name, gs, mode, use_keep, _ in GROUP_DEFS:
             if items[row[ii]][1] not in gs:
                 continue
@@ -202,6 +208,16 @@ def main():
             st['item_daily'][row[ii]][dt][0] += s
             st['item_daily'][row[ii]][dt][1] += t
             st['item_daily'][row[ii]][dt][2] += q
+            # 日报统计：只统计四个主组（短视频与其他组有重叠，排除）
+            if name != '短视频' and not matched_main:
+                matched_main = True
+                order_sets[dt].add(row[oi])
+                aname = row[ani].strip() or '（未知）'
+                an = anchors.get(aname)
+                if an is None:
+                    an = anchors[aname] = {'id': a, 'daily': defaultdict(lambda: [0.0, 0.0])}
+                an['daily'][dt][0] += s
+                an['daily'][dt][1] += q
 
     today = datetime.datetime.now(BJ_TZ).date()
     w_sun, w_sat = week_bounds(today)
@@ -369,6 +385,19 @@ def main():
     out = {'meta': meta, 'groups': groups_out, 'ach': ach_out,
            'video': video_out, 'kuaishou': kuaishou_out}
     json.dump(out, open(out_path, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+    # 日报附加数据：按日订单量（去重）+ 达人日明细
+    extra = {
+        'meta': {'data_from': meta['data_from'], 'data_to': meta['data_to'],
+                 'updated_at': meta['updated_at'], 'today': meta['today']},
+        'order_daily': {d: len(s) for d, s in sorted(order_sets.items())},
+        'anchors': [{'name': n, 'id': v['id'],
+                     'daily': {k: [round(x[0], 2), round(x[1])]
+                               for k, x in sorted(v['daily'].items())}}
+                    for n, v in anchors.items()],
+    }
+    json.dump(extra, open(os.path.join(BASE, 'daily_extra.json'), 'w', encoding='utf-8'),
+              ensure_ascii=False)
+    print('已生成日报附加数据: daily_extra.json（%d 个达人/直播间）' % len(anchors))
     print('已生成:', out_path)
     print('  数据区间: %s ~ %s' % (meta['data_from'], meta['data_to']))
     for g in groups_out:

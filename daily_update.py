@@ -247,6 +247,11 @@ def main():
     subprocess.run([PY, os.path.join(BASE, 'build_dashboard_data.py'),
                     '--data-dir', date_dir], check=True)
     subprocess.run([PY, os.path.join(BASE, 'build_dashboard_html.py')], check=True)
+    # 日报独立页面
+    try:
+        subprocess.run([PY, os.path.join(BASE, 'build_daily_html.py')], check=True)
+    except Exception as e:
+        print('  [警告] 日报页生成失败(%s)' % type(e).__name__)
 
     if not args.skip_upload:
         print('\n=== 覆盖上传云端 ===')
