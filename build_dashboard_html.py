@@ -111,14 +111,11 @@ TEMPLATE = r"""<!DOCTYPE html>
   </header>
 
   <div class="toolbar">
-    <div class="seg" id="viewSeg">
-      <button data-v="channel" class="on">分渠道</button>
-      <button data-v="daily">日报</button>
-    </div>
     <div class="seg" id="channelSeg">
-      <button data-c="抖音" class="on">抖音</button>
-      <button data-c="快手">快手</button>
-      <button data-c="视频号">视频号</button>
+      <button data-v="daily" id="btnDaily">日报</button>
+      <button data-v="channel" data-c="抖音" class="on">抖音</button>
+      <button data-v="channel" data-c="快手">快手</button>
+      <button data-v="channel" data-c="视频号">视频号</button>
     </div>
   </div>
 
@@ -301,16 +298,24 @@ function renderSales(){
   document.getElementById('topNote').textContent = `销售额 ≥ ${topThreshold()>=10000?'1 万':'1000'}（${d0} ~ ${d1}）`;
   const len = Math.round((new Date(d1)-new Date(d0))/86400000)+1;
   const pv0 = addDays(d0,-len), pv1 = addDays(d0,-1);
+  const gsAll = groupsData();
+  let grand = 0;
+  gsAll.forEach(g=>{ grand += sumRange(g,d0,d1)[0]; });
+  const ACC = ['#3b82f6','#10b981','#8b5cf6','#f97316','#14b8a6'];
   let cards='', rows='', tAll=[0,0,0];
-  groupsData().forEach(g=>{
+  gsAll.forEach((g,gi)=>{
     const v=sumRange(g,d0,d1); tAll[0]+=v[0]; tAll[1]+=v[1]; tAll[2]+=v[2];
     const pv=sumRange(g,pv0,pv1);
     const mom = pv[0]>0? ((v[0]-pv[0])/pv[0]*100) : null;
     const momTxt = mom==null? '<span class="muted">-</span>' :
       `<b style="color:${mom>=0?'var(--up)':'var(--down)'}">${mom>=0?'▲':'▼'} ${Math.abs(mom).toFixed(1)}%</b>`;
-    cards += `<div class="card"><div class="nm">${g.name}</div>
-      <div class="val" title="${exact(v[0])} 元">${wan(v[0])}</div>
-      <div class="extra"><span>销量 ${fmt(v[2])}</span><span>环比 ${momTxt}</span></div></div>`;
+    const share = grand>0? v[0]/grand*100 : 0;
+    const ac = ACC[gi%ACC.length];
+    cards += `<div class="kpi" style="border-left:4px solid ${ac}"><div class="kl">${g.name}</div>
+      <div class="kv" title="${exact(v[0])} 元">${wan(v[0])}</div>
+      <div class="ks" style="justify-content:space-between"><span>销量 ${fmt(v[2])}</span><span>环比 ${momTxt}</span></div>
+      <div class="pbar"><i style="width:${Math.min(share,100).toFixed(1)}%;background:${ac}"></i></div>
+      <div class="ks" style="margin-top:5px;justify-content:space-between"><span>占比</span><b>${share.toFixed(1)}%</b></div></div>`;
     rows += `<tr><td class="name">${g.name}</td>
       <td>${money(v[0])}</td><td>${money(v[1])}</td><td>${fmt(v[2])}</td>
       <td>${money(g.week_cur[0])}</td><td>${money(g.week_prev[0])}</td>
@@ -397,10 +402,16 @@ function setRangeInputs(){
 
 document.getElementById('channelSeg').addEventListener('click', e=>{
   const b=e.target.closest('button'); if(!b || b.disabled) return;
-  if(b.dataset.c==='视频号' && !DATA.video) return;
+  const v = b.dataset.v || 'channel';
+  if(v==='daily' && !DATA.extra) return;
+  if(v==='channel' && b.dataset.c==='视频号' && !DATA.video) return;
   [...e.currentTarget.children].forEach(x=>x.classList.toggle('on', x===b));
-  CH=b.dataset.c;
-  renderHeader(); renderSales(); renderAch();
+  VIEW = v;
+  if(v==='channel') CH = b.dataset.c;
+  document.getElementById('viewChannel').style.display = VIEW==='channel'?'':'none';
+  document.getElementById('viewDaily').style.display   = VIEW==='daily'?'':'none';
+  if(VIEW==='daily') renderDaily();
+  else { renderHeader(); renderSales(); renderAch(); }
 });
 document.getElementById('salesSeg').addEventListener('click', e=>{
   const b=e.target.closest('button'); if(!b) return;
@@ -490,15 +501,17 @@ function renderDaily(){
     {l:'📈 月累计销售额', v:money(mo[0]), m:dMom(mo[0],moP[0]), r:tM?mo[0]/tM*100:null, tn:'月目标'},
     {l:'📆 季度累计销售额', v:money(qt[0]), m:dMom(qt[0],qtP[0]), r:tQ?qt[0]/tQ*100:null, tn:'季度目标'}
   ];
-  grid.innerHTML = cards.map(c=>{
+  const ACC5 = ['#3b82f6','#10b981','#8b5cf6','#f97316','#14b8a6'];
+  grid.innerHTML = cards.map((c,i)=>{
+    const ac = ACC5[i%ACC5.length];
     let p='';
     if(c.r!=null){
-      p='<div class="pbar"><i style="width:'+Math.min(c.r,100).toFixed(1)+'%"></i></div>'+
+      p='<div class="pbar"><i style="width:'+Math.min(c.r,100).toFixed(1)+'%;background:'+ac+'"></i></div>'+
         '<div class="ks" style="margin-top:5px;justify-content:space-between"><span>'+c.tn+'</span><b>'+
         c.r.toFixed(1)+'%</b></div>';
     }
-    return '<div class="kpi"><div class="kl">'+c.l+'</div><div class="kv">'+c.v+
-      '</div><div class="ks"><span>环比</span>'+c.m+'</div>'+p+'</div>';
+    return '<div class="kpi" style="border-left:4px solid '+ac+'"><div class="kl">'+c.l+'</div><div class="kv">'+c.v+
+      '</div><div class="ks" style="justify-content:space-between"><span>环比</span>'+c.m+'</div>'+p+'</div>';
   }).join('');
 
   // 趋势（近7天，4品线，内联 SVG）
@@ -611,21 +624,12 @@ function renderDaily(){
   document.getElementById('itemTable').innerHTML = ih2+'</tbody></table>';
 }
 
-document.getElementById('viewSeg').addEventListener('click', e=>{
-  const b=e.target.closest('button'); if(!b) return;
-  [...e.currentTarget.children].forEach(x=>x.classList.toggle('on', x===b));
-  VIEW = b.dataset.v;
-  document.getElementById('viewChannel').style.display = VIEW==='channel'?'':'none';
-  document.getElementById('viewDaily').style.display   = VIEW==='daily'?'':'none';
-  document.getElementById('channelSeg').style.visibility = VIEW==='channel'?'visible':'hidden';
-  if(VIEW==='daily') renderDaily();
-});
-
 renderHeader();
 setRangeInputs();
 renderSales();
 renderAch();
 if(!DATA.video){ const vb=document.querySelector('#channelSeg button[data-c="视频号"]'); if(vb){ vb.disabled=true; vb.title='暂无视频号数据'; } }
+if(!DATA.extra){ const db=document.getElementById('btnDaily'); if(db){ db.disabled=true; db.title='暂无日报数据'; } }
 if(!DATA.kuaishou){ const kb=document.querySelector('#channelSeg button[data-c="快手"]'); if(kb){ kb.disabled=true; kb.title='暂无快手数据'; } }
 </script>
 </body>
