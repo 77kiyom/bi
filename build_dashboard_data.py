@@ -89,7 +89,9 @@ def load_flybook():
     for l in d['data']['annotated_csv'].split('\n')[1:]:
         l = re.sub(r'^\[row=\d+\]\s*', '', l)
         p = l.split(',')
-        if len(p) > 1 and p[1].strip():
+        if len(p) > 1 and p[1].strip() and p[0].strip():
+            # 必须有账号名称：清单里曾混入一条空名记录（uid 818478288482676 =
+            # 网易严选家纺官方旗舰店，官方自播号），会把直播成交算进短视频，故剔除
             uids.add(p[1].strip())
         if len(p) >= 3 and p[2].strip():
             tuans.add(p[2].strip())
