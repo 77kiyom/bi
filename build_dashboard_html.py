@@ -36,7 +36,6 @@ TEMPLATE = r"""<!DOCTYPE html>
   .seg button:last-child{border-right:0}
   .seg button.on{background:var(--brand);color:#fff;font-weight:600}
   .seg button:disabled{color:#c3cad4;cursor:not-allowed}
-  .seg.daily-mode .ch-btn{display:none}
   .filterbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;
     background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:16px}
   .filterbar .lb{font-size:13px;color:var(--muted)}
@@ -155,8 +154,11 @@ TEMPLATE = r"""<!DOCTYPE html>
   <div class="panel">
     <h2>🔥 Top 单品 <small id="topNote">销售额 ≥ 1 万</small></h2>
     <div class="filterbar" style="margin-bottom:12px">
-      <span class="lb">分组</span>
+      <span class="lb">渠道组</span>
       <div class="seg" id="topGroupSeg"></div>
+      <span class="lb">所属小组</span>
+      <select id="topSubSel" style="border:1px solid var(--line);border-radius:7px;padding:6px 8px;
+        font-size:12.5px;font-family:inherit;background:#fff;color:var(--txt)"></select>
       <span class="lb" style="margin-left:auto">排序</span>
       <div class="seg" id="topSortSeg">
         <button data-s="amt" class="on">销售额</button>
@@ -348,7 +350,7 @@ function renderSales(){
   renderTop();
 }
 
-let topGroup='all', topSort='amt';
+let topGroup='all', topSort='amt', topSub='all';
 function renderTop(){
   const d0=salesRange[0], d1=salesRange[1];
   const all = groupsData();
@@ -366,6 +368,15 @@ function renderTop(){
       rows.push({name:it.name, group:it.group_name||'-', gname:g.name, amt:it.amt, qty:it.qty});
     });
   });
+  // 所属小组筛选（按当前渠道组下的实际 group_name 生成）
+  const subs = Array.from(new Set(rows.map(r=>r.group))).sort();
+  if(topSub!=='all' && subs.indexOf(topSub)<0) topSub='all';
+  const ssel=document.getElementById('topSubSel');
+  if(ssel){
+    ssel.innerHTML = ['all'].concat(subs).map(s=>
+      '<option value="'+s+'"'+(s===topSub?' selected':'')+'>'+(s==='all'?'全部小组':s)+'</option>').join('');
+  }
+  if(topSub!=='all') rows = rows.filter(r=>r.group===topSub);
   rows.sort((a,b)=> topSort==='qty' ? (b.qty-a.qty) : (b.amt-a.amt));
   const el=document.getElementById('topItems');
   if(!rows.length){
@@ -389,6 +400,9 @@ document.getElementById('topSortSeg').addEventListener('click', e=>{
   const b=e.target.closest('button'); if(!b) return;
   [...e.currentTarget.children].forEach(x=>x.classList.toggle('on', x===b));
   topSort=b.dataset.s; renderTop();
+});
+document.getElementById('topSubSel').addEventListener('change', e=>{
+  topSub=e.target.value; renderTop();
 });
 
 function achRange(p){
@@ -452,7 +466,7 @@ document.getElementById('channelSeg').addEventListener('click', e=>{
   const seg = e.currentTarget;
   if(v==='daily'){
     if(!DATA.extra) return;
-    VIEW = (VIEW==='daily') ? 'channel' : 'daily';
+    VIEW = 'daily';
   } else {
     if(b.dataset.c==='视频号' && !DATA.video) return;
     VIEW = 'channel'; CH = b.dataset.c;
@@ -461,7 +475,6 @@ document.getElementById('channelSeg').addEventListener('click', e=>{
     if(x.dataset.v==='daily') x.classList.toggle('on', VIEW==='daily');
     else x.classList.toggle('on', VIEW==='channel' && x.dataset.c===CH);
   });
-  seg.classList.toggle('daily-mode', VIEW==='daily');
   document.getElementById('viewChannel').style.display = VIEW==='channel'?'':'none';
   document.getElementById('viewDaily').style.display = VIEW==='daily'?'':'none';
   if(VIEW==='daily') renderDaily();
