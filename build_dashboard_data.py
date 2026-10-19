@@ -217,9 +217,10 @@ def main():
                 aname = row[ani].strip() or '（未知）'
                 an = anchors.get(aname)
                 if an is None:
-                    an = anchors[aname] = {'id': a, 'daily': defaultdict(lambda: [0.0, 0.0])}
+                    an = anchors[aname] = {'id': a, 'daily': defaultdict(lambda: [0.0, 0.0, 0.0])}
                 an['daily'][dt][0] += s
-                an['daily'][dt][1] += q
+                an['daily'][dt][1] += t
+                an['daily'][dt][2] += q
 
     today = datetime.datetime.now(BJ_TZ).date()
     w_sun, w_sat = week_bounds(today)
@@ -290,6 +291,7 @@ def main():
     ach_out = []
     for disp, members, target in ACH_GROUPS:
         actual = {'week_cur': 0.0, 'week_prev': 0.0, 'month': 0.0, 'quarter': 0.0}
+        tax = {'week_cur': 0.0, 'week_prev': 0.0, 'month': 0.0, 'quarter': 0.0}
         for m in members:
             g = by_name.get(m)
             if not g:
@@ -298,8 +300,13 @@ def main():
             actual['week_prev'] += g['week_prev'][0]
             actual['month'] += g['month'][0]
             actual['quarter'] += g['quarter'][0]
+            tax['week_cur'] += g['week_cur'][1]
+            tax['week_prev'] += g['week_prev'][1]
+            tax['month'] += g['month'][1]
+            tax['quarter'] += g['quarter'][1]
         ach_out.append({'name': disp, 'members': members, 'target': target,
-                        'actual': {k: round(v, 2) for k, v in actual.items()}})
+                        'actual': {k: round(v, 2) for k, v in actual.items()},
+                        'tax': {k: round(v, 2) for k, v in tax.items()}})
 
     # ===== 视频号 / 小红书渠道 =====
     video_out = None
@@ -360,17 +367,21 @@ def main():
         for g in vgroups:
             act = {'week_cur': g['week_cur'][0], 'week_prev': g['week_prev'][0],
                    'month': g['month'][0], 'quarter': g['quarter'][0]}
+            tax = {'week_cur': g['week_cur'][1], 'week_prev': g['week_prev'][1],
+                   'month': g['month'][1], 'quarter': g['quarter'][1]}
             split = None
             if g['name'] == '家具百货组' and xhs_g:
-                split = {
-                    '视频号': dict(act),
-                    '小红书': {'week_cur': xhs_g['week_cur'][0], 'week_prev': xhs_g['week_prev'][0],
-                               'month': xhs_g['month'][0], 'quarter': xhs_g['quarter'][0]},
-                }
+                xact = {'week_cur': xhs_g['week_cur'][0], 'week_prev': xhs_g['week_prev'][0],
+                        'month': xhs_g['month'][0], 'quarter': xhs_g['quarter'][0]}
+                xtax = {'week_cur': xhs_g['week_cur'][1], 'week_prev': xhs_g['week_prev'][1],
+                        'month': xhs_g['month'][1], 'quarter': xhs_g['quarter'][1]}
+                split = {'视频号': {'amt': dict(act), 'tax': dict(tax)},
+                         '小红书': {'amt': xact, 'tax': xtax}}
                 for k in list(act.keys()):
-                    act[k] = act[k] + split['小红书'][k]
+                    act[k] = act[k] + xact[k]
+                    tax[k] = tax[k] + xtax[k]
             vach.append({'name': g['name'], 'members': [g['name']], 'target': g['target'],
-                         'actual': act, 'split': split})
+                         'actual': act, 'tax': tax, 'split': split})
 
         video_out = {'meta': chs.get('视频号', {}).get('meta'),
                      'groups': vgroups, 'xhs': xhs_g, 'ach': vach}
@@ -380,6 +391,8 @@ def main():
             ks_ach.append({'name': g['name'], 'members': [g['name']], 'target': g['target'],
                            'actual': {'week_cur': g['week_cur'][0], 'week_prev': g['week_prev'][0],
                                       'month': g['month'][0], 'quarter': g['quarter'][0]},
+                           'tax': {'week_cur': g['week_cur'][1], 'week_prev': g['week_prev'][1],
+                                   'month': g['month'][1], 'quarter': g['quarter'][1]},
                            'split': None})
         kuaishou_out = {'meta': chs.get('快手', {}).get('meta'),
                         'groups': ks_groups, 'ach': ks_ach}
@@ -393,7 +406,7 @@ def main():
                  'updated_at': meta['updated_at'], 'today': meta['today']},
         'order_daily': {d: len(s) for d, s in sorted(order_sets.items())},
         'anchors': [{'name': n, 'id': v['id'],
-                     'daily': {k: [round(x[0], 2), round(x[1])]
+                     'daily': {k: [round(x[0], 2), round(x[1], 2), round(x[2])]
                                for k, x in sorted(v['daily'].items())}}
                     for n, v in anchors.items()],
     }

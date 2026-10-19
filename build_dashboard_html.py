@@ -80,6 +80,8 @@ TEMPLATE = r"""<!DOCTYPE html>
   .chart .fill{position:absolute;left:0;top:0;height:100%;border-radius:6px;transition:width .3s}
   .chart .goal{position:absolute;top:-2px;bottom:-2px;width:2px;background:#8a94a3;opacity:.75}
   .chart .pct{width:66px;font-size:12.5px;text-align:right;flex:none;font-variant-numeric:tabular-nums}
+  .chart .tp{position:absolute;top:-2px;bottom:-2px;width:0;border-left:2px dashed var(--brand);opacity:.9}
+  .chart .win{width:104px;font-size:11.5px;text-align:left;flex:none;padding-left:8px}
   @media(max-width:900px){
     .cards{grid-template-columns:repeat(2,1fr)}
     .prog-grid{grid-template-columns:1fr}
@@ -161,7 +163,7 @@ TEMPLATE = r"""<!DOCTYPE html>
         font-size:12.5px;font-family:inherit;background:#fff;color:var(--txt)"></select>
       <span class="lb" style="margin-left:auto">排序</span>
       <div class="seg" id="topSortSeg">
-        <button data-s="amt" class="on">销售额</button>
+        <button data-s="amt" class="on">含税收入</button>
         <button data-s="qty">销量</button>
       </div>
     </div>
@@ -274,15 +276,15 @@ function sumRange(g,d0,d1){
 function topInRange(g,d0,d1){
   const out=[];
   for(const iid in g.item_daily){
-    let a=0,q=0; const dv=g.item_daily[iid];
+    let a=0,t=0,q=0; const dv=g.item_daily[iid];
     for(const k in dv){
       if(d0 && k<d0) continue;
       if(d1 && k>d1) continue;
-      a+=dv[k][0]; q+=dv[k][2];
+      a+=dv[k][0]; t+=dv[k][1]; q+=dv[k][2];
     }
     if(a>=topThreshold()){
       const info=(g.top_items.find(x=>x.item_id===iid))||{};
-      out.push({item_id:iid, name:info.name||iid, group_name:info.group_name||'', amt:a, qty:q});
+      out.push({item_id:iid, name:info.name||iid, group_name:info.group_name||'', amt:a, tax:t, qty:q});
     }
   }
   out.sort((x,y)=>y.amt-x.amt);
@@ -318,19 +320,19 @@ function renderSales(){
   const pv0 = addDays(d0,-len), pv1 = addDays(d0,-1);
   const gsAll = groupsData();
   let grand = 0;
-  gsAll.forEach(g=>{ grand += sumRange(g,d0,d1)[0]; });
+  gsAll.forEach(g=>{ grand += sumRange(g,d0,d1)[1]; });
   const ACC = ['#3b82f6','#10b981','#8b5cf6','#f97316','#14b8a6'];
   let cards='', rows='', tAll=[0,0,0];
   gsAll.forEach((g,gi)=>{
     const v=sumRange(g,d0,d1); tAll[0]+=v[0]; tAll[1]+=v[1]; tAll[2]+=v[2];
     const pv=sumRange(g,pv0,pv1);
-    const mom = pv[0]>0? ((v[0]-pv[0])/pv[0]*100) : null;
+    const mom = pv[1]>0? ((v[1]-pv[1])/pv[1]*100) : null;
     const momTxt = mom==null? '<span class="muted">-</span>' :
       `<b style="color:${mom>=0?'var(--up)':'var(--down)'}">${mom>=0?'▲':'▼'} ${Math.abs(mom).toFixed(1)}%</b>`;
-    const share = grand>0? v[0]/grand*100 : 0;
+    const share = grand>0? v[1]/grand*100 : 0;
     const ac = ACC[gi%ACC.length];
     cards += `<div class="kpi" style="border-left:4px solid ${ac}"><div class="kl">${g.name}</div>
-      <div class="kv" title="${exact(v[0])} 元">${wan(v[0])}</div>
+      <div class="kv" title="${exact(v[1])} 元">${wan(v[1])}</div>
       <div class="ks" style="justify-content:space-between"><span>销量 ${fmt(v[2])}</span><span>环比 ${momTxt}</span></div>
       <div class="pbar"><i style="width:${Math.min(share,100).toFixed(1)}%;background:${ac}"></i></div>
       <div class="ks" style="margin-top:5px;justify-content:space-between"><span>占比</span><b>${share.toFixed(1)}%</b></div></div>`;
@@ -365,7 +367,7 @@ function renderTop(){
   let rows=[];
   gs.forEach(g=>{
     topInRange(g,d0,d1).forEach(it=>{
-      rows.push({name:it.name, group:it.group_name||'-', gname:g.name, amt:it.amt, qty:it.qty});
+      rows.push({name:it.name, group:it.group_name||'-', gname:g.name, amt:it.amt, tax:it.tax||0, qty:it.qty});
     });
   });
   // 所属小组筛选（按当前渠道组下的实际 group_name 生成）
@@ -377,17 +379,17 @@ function renderTop(){
       '<option value="'+s+'"'+(s===topSub?' selected':'')+'>'+(s==='all'?'全部小组':s)+'</option>').join('');
   }
   if(topSub!=='all') rows = rows.filter(r=>r.group===topSub);
-  rows.sort((a,b)=> topSort==='qty' ? (b.qty-a.qty) : (b.amt-a.amt));
+  rows.sort((a,b)=> topSort==='qty' ? (b.qty-a.qty) : (b.tax-a.tax));
   const el=document.getElementById('topItems');
   if(!rows.length){
     el.innerHTML = '<div class="empty">该区间内没有符合条件的单品（销售额 ≥ '+(topThreshold()>=10000?'1 万':'1000')+'）</div>';
     return;
   }
   let html='<table><thead><tr><th>#</th><th>商品名称</th><th>所属小组</th><th>渠道组</th>'+
-    '<th style="text-align:right">销售额</th><th style="text-align:right">销量</th></tr></thead><tbody>';
+    '<th style="text-align:right">含税收入</th><th style="text-align:right">销量</th></tr></thead><tbody>';
   rows.forEach((it,i)=>{
     html+='<tr><td>'+(i+1)+'</td><td>'+it.name+'</td><td><span class="tag">'+it.group+'</span></td>'+
-      '<td>'+it.gname+'</td><td style="text-align:right">'+money(it.amt)+'</td>'+
+      '<td>'+it.gname+'</td><td style="text-align:right">'+money(it.tax)+'</td>'+
       '<td style="text-align:right">'+fmt(it.qty)+'</td></tr>';
   });
   el.innerHTML = html+'</tbody></table>';
@@ -413,15 +415,29 @@ function achRange(p){
   if(p==='quarter') return [m.quarter.start, m.quarter.end];
   return ['', ''];
 }
+function achTimeProgress(p){
+  const m=DATA.meta;
+  let s,e;
+  if(p==='week_cur'){ s=m.week.start; e=m.week.end; }
+  else if(p==='week_prev'){ s=addDays(m.week.start,-7); e=addDays(m.week.end,-7); }
+  else if(p==='month'){ s=m.month.start; e=m.month.end; }
+  else { s=m.quarter.start; e=m.quarter.end; }
+  const today = m.today || m.data_to;
+  const total = Math.round((new Date(e)-new Date(s))/86400000)+1;
+  const done = Math.round((new Date(today)-new Date(s))/86400000)+1;
+  return Math.max(0, Math.min(100, done/total*100));
+}
+
 function renderAch(){
   const p=achPeriod;
   const label={week_cur:'本周',week_prev:'上周',month:'本月',quarter:'Q4 季度'}[p];
-  document.getElementById('targetNote').textContent=CH+'渠道 · '+label;
+  document.getElementById('targetNote').textContent=CH+'渠道 · '+label+'（含税收入）';
   const rg=achRange(p);
   document.getElementById('achRange').textContent='（'+rg[0]+' ~ '+rg[1]+'）';
   const tkey=(p==='week_cur'||p==='week_prev')?'week':(p==='month'?'month':'quarter');
+  const tp=achTimeProgress(p);
   let rows=achData().map(a=>{
-    const act=a.actual[p]||0;
+    const act=(a.tax&&a.tax[p]!=null)? a.tax[p] : (a.actual[p]||0);
     const tg=(a.target||{})[tkey];
     const r=(tg&&tg>0)? act/tg*100 : null;
     return {a:a, act:act, tg:tg, r:r};
@@ -438,21 +454,26 @@ function renderAch(){
     const rv=(tg&&tg>0)? r : 0;
     const w=Math.min(rv,150)/150*100;
     const col=rv>=100?'var(--down)':(rv>=80?'var(--amber)':'var(--up)');
+    const win=(r!=null && tp>0)? (r-tp) : null;
+    const winTxt=win==null? '<span class="muted">-</span>'
+      : `<span style="color:${win>=0?'var(--up)':'var(--down)'}">${win>=0?'领先':'落后'} ${Math.abs(win).toFixed(1)}pp</span>`;
     const sp=(a.split&&a.split['视频号']&&a.split['小红书'])
-      ? `（视频号 ${exact(a.split['视频号'][p])} + 小红书 ${exact(a.split['小红书'][p])}）` : '';
+      ? `（视频号 ${exact(a.split['视频号'].tax[p])} + 小红书 ${exact(a.split['小红书'].tax[p])}）` : '';
     const tip=(tg&&tg>0)
-      ? `${a.name} · 达成率 ${r.toFixed(1)}%${sp}（达成 ${exact(act)} 元 / 目标 ${exact(tg)} 元）`
+      ? `${a.name} · 达成率 ${r.toFixed(1)}%${sp}（含税 ${exact(act)} 元 / 目标 ${exact(tg)} 元）｜时间进度 ${tp.toFixed(1)}%`
       : `${a.name} · 未设目标`;
     chart += `<div class="row" title="${tip}"><div class="lbl">${a.name}</div>
       <div class="track"><div class="fill" style="width:${w}%;background:${col}"></div>
-        <div class="goal" style="left:66.667%"></div></div>
-      <div class="pct">${(tg&&tg>0)?r.toFixed(1)+'%':'-'}</div></div>`;
+        <div class="goal" style="left:66.667%"></div>
+        <div class="tp" style="left:${Math.min(tp,150)/150*100}%"></div></div>
+      <div class="pct">${(tg&&tg>0)?r.toFixed(1)+'%':'-'}</div>
+      <div class="win">${winTxt}</div></div>`;
   });
   document.getElementById('targetTable').innerHTML =
-    `<table><thead><tr><th>组</th><th>达成率</th><th>目标</th><th>达成</th></tr></thead><tbody>${trows}</tbody></table>
-     <div class="empty">目标为${CH}渠道；各组分设目标（服配 / 服配-羽绒 各自独立）；「待填」表示尚未设目标。</div>`;
+    `<table><thead><tr><th>组</th><th>达成率</th><th>目标</th><th>达成（含税）</th></tr></thead><tbody>${trows}</tbody></table>
+     <div class="empty">口径为<b>含税收入</b>；目标为${CH}渠道，各组分设目标（服配 / 服配-羽绒 各自独立）；「待填」表示尚未设目标。</div>`;
   document.getElementById('achChart').innerHTML = chart +
-    `<div class="muted" style="font-size:11.5px;margin-top:2px">灰线 = 100% 目标线（进度条满格为 150%）；鼠标悬停可看具体达成率</div>`;
+    `<div class="muted" style="font-size:11.5px;margin-top:2px">灰实线 = 100% 目标线；<b style="color:var(--brand)">蓝虚线 = 时间进度 ${tp.toFixed(1)}%</b>；进度条满格为 150%；鼠标悬停可看明细</div>`;
 }
 
 function setRangeInputs(){
@@ -511,6 +532,8 @@ const DGROUPS = ['家纺','家具百货组','服配','服配-羽绒'];
 const DCOLOR = {'家纺':'#2F5597','家具百货组':'#1e8e5a','服配':'#c77c00','服配-羽绒':'#8b5cf6'};
 
 function dSum(daily,d0,d1){ let a=0,q=0; for(const k in daily){ if(k<d0||k>d1) continue; a+=daily[k][0]; q+=daily[k][2]; } return [a,q]; }
+function dSumTax(daily,d0,d1){ let t=0; for(const k in daily){ if(k<d0||k>d1) continue; t+=(daily[k][1]||0); } return t; }
+function dGroupTax(d0,d1){ let t=0; (DATA.groups||[]).forEach(g=>{ if(DGROUPS.indexOf(g.name)<0) return; t+=dSumTax(g.daily,d0,d1); }); return t; }
 function dGroupSum(d0,d1){ let a=0,q=0; (DATA.groups||[]).forEach(g=>{ if(DGROUPS.indexOf(g.name)<0) return; const v=dSum(g.daily,d0,d1); a+=v[0]; q+=v[1]; }); return [a,q]; }
 function dTargetSum(k){ let t=0; (DATA.ach||[]).forEach(a=>{ if(DGROUPS.indexOf(a.name)<0) return; const v=(a.target||{})[k]; if(v) t+=v; }); return t; }
 function dMom(cur,prev){
@@ -553,10 +576,10 @@ function renderDaily(){
   const qStart = (DATA.meta.quarter||{}).start || '2026-10-01';
   const qPrevStart = '2026-07-01', qPrevEnd = '2026-09-30';
 
-  const day = dGroupSum(LATEST,LATEST), dayP = dGroupSum(PREV,PREV);
-  const wk = dGroupSum(wStart,LATEST), wkP = dGroupSum(wPrevStart,wPrevEnd);
-  const mo = dGroupSum(mStart,LATEST), moP = dGroupSum(pmStart,pmEnd);
-  const qt = dGroupSum(qStart,LATEST), qtP = dGroupSum(qPrevStart,qPrevEnd);
+  const day = dGroupTax(LATEST,LATEST), dayP = dGroupTax(PREV,PREV);
+  const wk = dGroupTax(wStart,LATEST), wkP = dGroupTax(wPrevStart,wPrevEnd);
+  const mo = dGroupTax(mStart,LATEST), moP = dGroupTax(pmStart,pmEnd);
+  const qt = dGroupTax(qStart,LATEST), qtP = dGroupTax(qPrevStart,qPrevEnd);
   const orders = (ex.order_daily||{})[LATEST]||0;
   const ordersP = (ex.order_daily||{})[PREV]||0;
 
@@ -564,11 +587,11 @@ function renderDaily(){
   const tD = tW/7;
 
   const cards = [
-    {l:'📦 日总销售额',   v:'¥'+fmt(day[0]),  ml:'环比昨日',     m:dMom(day[0],dayP[0]), r:tD?day[0]/tD*100:null, tn:'日目标完成率'},
+    {l:'📦 日总含税收入',   v:'¥'+fmt(day),  ml:'环比昨日',     m:dMom(day,dayP), r:tD?day/tD*100:null, tn:'日目标完成率'},
     {l:'📋 日订单量',     v:fmt(orders),      ml:'环比昨日',     m:dMom(orders,ordersP), r:null, tn:'日订单目标完成率'},
-    {l:'📊 周累计销售额', v:'¥'+fmt(wk[0]),   ml:'环比上周同期', m:dMom(wk[0],wkP[0]),   r:tW?wk[0]/tW*100:null, tn:'周目标完成率'},
-    {l:'📈 月累计销售额', v:'¥'+fmt(mo[0]),   ml:'环比上月同期', m:dMom(mo[0],moP[0]),   r:tM?mo[0]/tM*100:null, tn:'月目标完成率'},
-    {l:'📆 季度累计销售额', v:'¥'+fmt(qt[0]), ml:'环比上季度同期', m:dMom(qt[0],qtP[0]), r:tQ?qt[0]/tQ*100:null, tn:'季度目标完成率'}
+    {l:'📊 周累计含税收入', v:'¥'+fmt(wk),   ml:'环比上周同期', m:dMom(wk,wkP),   r:tW?wk/tW*100:null, tn:'周目标完成率'},
+    {l:'📈 月累计含税收入', v:'¥'+fmt(mo),   ml:'环比上月同期', m:dMom(mo,moP),   r:tM?mo/tM*100:null, tn:'月目标完成率'},
+    {l:'📆 季度累计含税收入', v:'¥'+fmt(qt), ml:'环比上季度同期', m:dMom(qt,qtP), r:tQ?qt/tQ*100:null, tn:'季度目标完成率'}
   ];
   const ACC5 = ['#3b82f6','#10b981','#8b5cf6','#f97316','#14b8a6'];
   grid.innerHTML = cards.map((c,i)=>{
@@ -589,7 +612,7 @@ function renderDaily(){
   const series = DGROUPS.map(nm=>{
     const g=(DATA.groups||[]).find(x=>x.name===nm);
     return {name:nm, color:DCOLOR[nm]||'#94a3b8',
-      data: days.map(d=>{ const v=g&&g.daily?g.daily[d]:null; return v? v[0]/10000 : 0; })};
+      data: days.map(d=>{ const v=g&&g.daily?g.daily[d]:null; return v? (v[1]||0)/10000 : 0; })};
   });
   const W=640,H=250,PL=44,PR=12,PT=14,PB=32, iw=W-PL-PR, ih=H-PT-PB;
   let maxV=0; series.forEach(s=>s.data.forEach(v=>{ if(v>maxV) maxV=v; }));
@@ -656,13 +679,13 @@ function renderDaily(){
   document.getElementById('boomTable').innerHTML = bh;
 
   // Top 达人 / 直播间
-  const totalDay = day[0];
+  const totalDay = day;
   const alist = (ex.anchors||[]).map(a=>{
     const dv=a.daily||{};
-    return {name:a.name, day:(dv[LATEST]||[0])[0], prev:(dv[PREV]||[0])[0],
-            wk:dSum(dv,wStart,LATEST)[0], mo:dSum(dv,mStart,LATEST)[0]};
+    return {name:a.name, day:(dv[LATEST]||[0,0,0])[1], prev:(dv[PREV]||[0,0,0])[1],
+            wk:dSumTax(dv,wStart,LATEST), mo:dSumTax(dv,mStart,LATEST)};
   }).filter(x=>x.day>0).sort((a,b)=>b.day-a.day).slice(0,10);
-  let ah='<table><thead><tr><th>#</th><th>达人 / 直播间</th><th style="text-align:right">日销售额</th>'+
+  let ah='<table><thead><tr><th>#</th><th>达人 / 直播间</th><th style="text-align:right">日含税收入</th>'+
     '<th style="text-align:right">日环比</th><th style="text-align:right">占当日</th>'+
     '<th style="text-align:right">周累计</th><th style="text-align:right">月累计</th><th>趋势</th></tr></thead><tbody>';
   alist.forEach((x,i)=>{
@@ -686,9 +709,9 @@ function renderDaily(){
       const dv=ids[iid];
       let d=0,w=0,m=0;
       for(const k in dv){
-        if(k===LATEST) d+=dv[k][0];
-        if(k>=wStart && k<=LATEST) w+=dv[k][0];
-        if(k>=mStart && k<=LATEST) m+=dv[k][0];
+        if(k===LATEST) d+=(dv[k][1]||0);
+        if(k>=wStart && k<=LATEST) w+=(dv[k][1]||0);
+        if(k>=mStart && k<=LATEST) m+=(dv[k][1]||0);
       }
       if(d<=0) continue;
       const info=(g.top_items||[]).find(t=>t.item_id===iid)||{};
@@ -698,7 +721,7 @@ function renderDaily(){
   const ilist=Object.keys(imap).map(k=>imap[k]).sort((a,b)=>b.day-a.day).slice(0,10);
   const medal=['🥇','🥈','🥉'];
   let ih2='<table><thead><tr><th>排名</th><th>商品名称</th><th>品线</th>'+
-    '<th style="text-align:right">日销售额</th><th style="text-align:right">占当日</th>'+
+    '<th style="text-align:right">日含税收入</th><th style="text-align:right">占当日</th>'+
     '<th style="text-align:right">周累计</th><th style="text-align:right">月累计</th></tr></thead><tbody>';
   ilist.forEach((x,i)=>{
     const sh = totalDay? x.day/totalDay*100 : 0;
@@ -743,7 +766,9 @@ def main():
             data['extra'] = extra
         except Exception as e:
             print('  [警告] daily_extra.json 读取失败:', type(e).__name__)
-    html = TEMPLATE.replace('/*__DATA__*/', json.dumps(data, ensure_ascii=False))
+    # 展示名统一：「家具百货组」→「家具百货」（内部数据键保持不变）
+    payload = json.dumps(data, ensure_ascii=False).replace('家具百货组', '家具百货')
+    html = TEMPLATE.replace('家具百货组', '家具百货').replace('/*__DATA__*/', payload)
     open(out_path, 'w', encoding='utf-8').write(html)
     print('已生成:', out_path, '(%.1f KB)' % (len(html.encode('utf-8')) / 1024))
 

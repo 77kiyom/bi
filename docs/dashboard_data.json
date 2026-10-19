@@ -1,6 +1,6 @@
 {
  "meta": {
-  "updated_at": "2026-10-19 16:41",
+  "updated_at": "2026-10-19 17:54",
   "today": "2026-10-19",
   "data_from": "2026-10-01",
   "data_to": "2026-10-18",
@@ -4957,6 +4957,12 @@
     "week_prev": 573172.33,
     "month": 1294781.75,
     "quarter": 1294781.75
+   },
+   "tax": {
+    "week_cur": 13415.9,
+    "week_prev": 547843.22,
+    "month": 1158317.85,
+    "quarter": 1158317.85
    }
   },
   {
@@ -4974,6 +4980,12 @@
     "week_prev": 47346.97,
     "month": 94577.06,
     "quarter": 94577.06
+   },
+   "tax": {
+    "week_cur": 821.87,
+    "week_prev": 42602.96,
+    "month": 81886.95,
+    "quarter": 81886.95
    }
   },
   {
@@ -4991,6 +5003,12 @@
     "week_prev": 1037441.42,
     "month": 1822229.06,
     "quarter": 1822229.06
+   },
+   "tax": {
+    "week_cur": 40440.25,
+    "week_prev": 969047.45,
+    "month": 1616033.64,
+    "quarter": 1616033.64
    }
   },
   {
@@ -5008,6 +5026,12 @@
     "week_prev": 27203.7,
     "month": 31229.7,
     "quarter": 31229.7
+   },
+   "tax": {
+    "week_cur": 189.0,
+    "week_prev": 25778.0,
+    "month": 27631.0,
+    "quarter": 27631.0
    }
   },
   {
@@ -5025,6 +5049,12 @@
     "week_prev": 98859.85,
     "month": 214874.61,
     "quarter": 214874.61
+   },
+   "tax": {
+    "week_cur": 2595.0,
+    "week_prev": 92075.78,
+    "month": 187677.19,
+    "quarter": 187677.19
    }
   }
  ],
@@ -7629,6 +7659,12 @@
      "month": 11144.0,
      "quarter": 11144.0
     },
+    "tax": {
+     "week_cur": 0.0,
+     "week_prev": 3549.0,
+     "month": 7887.0,
+     "quarter": 7887.0
+    },
     "split": null
    },
    {
@@ -7647,18 +7683,40 @@
      "month": 135503.0,
      "quarter": 135503.0
     },
+    "tax": {
+     "week_cur": 811.0,
+     "week_prev": 78503.0,
+     "month": 134500.0,
+     "quarter": 134500.0
+    },
     "split": {
      "视频号": {
-      "week_cur": 446.0,
-      "week_prev": 9034.0,
-      "month": 19240.0,
-      "quarter": 19240.0
+      "amt": {
+       "week_cur": 446.0,
+       "week_prev": 9034.0,
+       "month": 19240.0,
+       "quarter": 19240.0
+      },
+      "tax": {
+       "week_cur": 303.0,
+       "week_prev": 8143.0,
+       "month": 17917.0,
+       "quarter": 17917.0
+      }
      },
      "小红书": {
-      "week_cur": 9900.0,
-      "week_prev": 64800.0,
-      "month": 116263.0,
-      "quarter": 116263.0
+      "amt": {
+       "week_cur": 9900.0,
+       "week_prev": 64800.0,
+       "month": 116263.0,
+       "quarter": 116263.0
+      },
+      "tax": {
+       "week_cur": 508.0,
+       "week_prev": 70360.0,
+       "month": 116583.0,
+       "quarter": 116583.0
+      }
      }
     }
    },
@@ -7678,6 +7736,12 @@
      "month": 203516.0,
      "quarter": 203516.0
     },
+    "tax": {
+     "week_cur": 2998.0,
+     "week_prev": 70099.0,
+     "month": 187795.0,
+     "quarter": 187795.0
+    },
     "split": null
    },
    {
@@ -7695,6 +7759,12 @@
      "week_prev": 620.0,
      "month": 15486.0,
      "quarter": 15486.0
+    },
+    "tax": {
+     "week_cur": 0.0,
+     "week_prev": 616.0,
+     "month": 6839.0,
+     "quarter": 6839.0
     },
     "split": null
    }
@@ -10125,6 +10195,12 @@
      "month": 5796.4,
      "quarter": 5796.4
     },
+    "tax": {
+     "week_cur": 89.0,
+     "week_prev": 2274.73,
+     "month": 4825.46,
+     "quarter": 4825.46
+    },
     "split": null
    },
    {
@@ -10142,6 +10218,12 @@
      "week_prev": 7437.97,
      "month": 16944.9,
      "quarter": 16944.9
+    },
+    "tax": {
+     "week_cur": 475.37,
+     "week_prev": 7381.46,
+     "month": 15554.11,
+     "quarter": 15554.11
     },
     "split": null
    },
@@ -10161,6 +10243,12 @@
      "month": 97032.8,
      "quarter": 97032.8
     },
+    "tax": {
+     "week_cur": 873.64,
+     "week_prev": 21437.31,
+     "month": 81139.46,
+     "quarter": 81139.46
+    },
     "split": null
    },
    {
@@ -10178,6 +10266,12 @@
      "week_prev": 631880.11,
      "month": 654837.51,
      "quarter": 654837.51
+    },
+    "tax": {
+     "week_cur": 10379.21,
+     "week_prev": 295181.31,
+     "month": 309054.81,
+     "quarter": 309054.81
     },
     "split": null
    }
