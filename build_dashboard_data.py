@@ -64,9 +64,9 @@ VIDEO_GROUPS = ['家纺', '家具百货组', '服配', '服配-羽绒']
 
 # 快手渠道目标：仅服配-羽绒有（全渠道 753.94 万 = 抖音 300 + 快手 300 + 视频号 153.94）
 KUAISHOU_TARGETS = {
-    '家纺':       {'week': None, 'month': None, 'quarter': None},
-    '家具百货组': {'week': None, 'month': None, 'quarter': None},
-    '服配':       {'week': None, 'month': None, 'quarter': None},
+    '家纺':       {'week': 56000,  'month': 247000, 'quarter': 612000},
+    '家具百货组': {'week': 35000,  'month': 153000, 'quarter': 379000},
+    '服配':       {'week': 92000,  'month': 405000, 'quarter': 1216000},
     '服配-羽绒':  {'week': 230769, 'month': 1000000, 'quarter': 3000000},
 }
 

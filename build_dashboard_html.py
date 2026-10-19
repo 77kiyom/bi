@@ -156,9 +156,7 @@ TEMPLATE = r"""<!DOCTYPE html>
   <div class="panel">
     <h2>🔥 Top 单品 <small id="topNote">销售额 ≥ 1 万</small></h2>
     <div class="filterbar" style="margin-bottom:12px">
-      <span class="lb">渠道组</span>
-      <div class="seg" id="topGroupSeg"></div>
-      <span class="lb">所属小组</span>
+      <span class="lb">所属渠道组</span>
       <select id="topSubSel" style="border:1px solid var(--line);border-radius:7px;padding:6px 8px;
         font-size:12.5px;font-family:inherit;background:#fff;color:var(--txt)"></select>
       <span class="lb" style="margin-left:auto">排序</span>
@@ -359,20 +357,12 @@ function renderSales(){
   renderTop();
 }
 
-let topGroup='all', topSort='amt', topSub='all';
+let topSort='amt', topSub='all';
 function renderTop(){
   const d0=salesRange[0], d1=salesRange[1];
   const all = groupsData();
-  const names = all.map(g=>g.name);
-  if(topGroup!=='all' && names.indexOf(topGroup)<0) topGroup='all';
-  const gseg=document.getElementById('topGroupSeg');
-  if(gseg){
-    gseg.innerHTML = ['all'].concat(names).map(n=>
-      '<button data-g="'+n+'"'+(n===topGroup?' class="on"':'')+'>'+(n==='all'?'全部':n)+'</button>').join('');
-  }
-  const gs = topGroup==='all' ? all : all.filter(g=>g.name===topGroup);
   let rows=[];
-  gs.forEach(g=>{
+  all.forEach(g=>{
     topInRange(g,d0,d1).forEach(it=>{
       rows.push({name:it.name, group:it.group_name||'-', gname:g.name, amt:it.amt, tax:it.tax||0, qty:it.qty});
     });
@@ -401,10 +391,6 @@ function renderTop(){
   });
   el.innerHTML = html+'</tbody></table>';
 }
-document.getElementById('topGroupSeg').addEventListener('click', e=>{
-  const b=e.target.closest('button'); if(!b) return;
-  topGroup=b.dataset.g; renderTop();
-});
 document.getElementById('topSortSeg').addEventListener('click', e=>{
   const b=e.target.closest('button'); if(!b) return;
   [...e.currentTarget.children].forEach(x=>x.classList.toggle('on', x===b));

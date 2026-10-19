@@ -1,6 +1,6 @@
 {
  "meta": {
-  "updated_at": "2026-10-19 18:08",
+  "updated_at": "2026-10-19 18:12",
   "today": "2026-10-19",
   "data_from": "2026-10-01",
   "data_to": "2026-10-18",
@@ -8106,9 +8106,9 @@
      }
     },
     "target": {
-     "week": null,
-     "month": null,
-     "quarter": null
+     "week": 56000,
+     "month": 247000,
+     "quarter": 612000
     }
    },
    {
@@ -8852,9 +8852,9 @@
      }
     },
     "target": {
-     "week": null,
-     "month": null,
-     "quarter": null
+     "week": 35000,
+     "month": 153000,
+     "quarter": 379000
     }
    },
    {
@@ -9818,9 +9818,9 @@
      }
     },
     "target": {
-     "week": null,
-     "month": null,
-     "quarter": null
+     "week": 92000,
+     "month": 405000,
+     "quarter": 1216000
     }
    },
    {
@@ -10185,9 +10185,9 @@
      "家纺"
     ],
     "target": {
-     "week": null,
-     "month": null,
-     "quarter": null
+     "week": 56000,
+     "month": 247000,
+     "quarter": 612000
     },
     "actual": {
      "week_cur": 178.0,
@@ -10209,9 +10209,9 @@
      "家具百货组"
     ],
     "target": {
-     "week": null,
-     "month": null,
-     "quarter": null
+     "week": 35000,
+     "month": 153000,
+     "quarter": 379000
     },
     "actual": {
      "week_cur": 1175.64,
@@ -10233,9 +10233,9 @@
      "服配"
     ],
     "target": {
-     "week": null,
-     "month": null,
-     "quarter": null
+     "week": 92000,
+     "month": 405000,
+     "quarter": 1216000
     },
     "actual": {
      "week_cur": 1217.64,
