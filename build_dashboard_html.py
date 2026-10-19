@@ -221,13 +221,21 @@ const fmt = n => (n==null? '-' : Number(n).toLocaleString('zh-CN',{maximumFracti
 const exact = n => (n==null? '-' : Number(n).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2}));
 const wan = n => (n==null? '-' : (Number(n)/10000).toFixed(2)+'万');
 // 金额：显示 xx.xx万，鼠标悬停显示真实金额
-const money = n => `<span title="${exact(n)} 元">${wan(n)}</span>`;
-// 小额显示具体金额（<1万），大额显示 xx.xx万
-const money2 = n => {
+// 金额展示：<1万 直接显示具体金额（元，不四舍五入到万）；≥1万 显示 xx.xx万
+const amtTxt = n => {
   if(n==null) return '-';
   const v=Number(n);
-  const s = Math.abs(v) < 10000 ? fmt(v)+' 元' : (v/10000).toFixed(2)+'万';
-  return `<span title="${exact(v)} 元">${s}</span>`;
+  if(Math.abs(v) < 10000){
+    return Number((Math.round(v*100)/100)).toLocaleString('zh-CN',{maximumFractionDigits:2})+' 元';
+  }
+  return (v/10000).toFixed(2)+'万';
+};
+const money = n => n==null? '-' : `<span title="${exact(n)} 元">${amtTxt(n)}</span>`;
+const money2 = money;
+const kpiTxt = n => {
+  if(n==null) return '-';
+  const v=Number(n);
+  return Math.abs(v) < 10000 ? amtTxt(v) : '¥'+fmt(v);
 };
 const iso = d => d.toISOString().slice(0,10);
 const addDays = (s,n) => { const d=new Date(s); d.setDate(d.getDate()+n); return iso(d); };
@@ -337,7 +345,7 @@ function renderSales(){
     const share = grand>0? v[1]/grand*100 : 0;
     const ac = ACC[gi%ACC.length];
     cards += `<div class="kpi" style="border-left:4px solid ${ac}"><div class="kl">${g.name}</div>
-      <div class="kv" title="${exact(v[1])} 元">${wan(v[1])}</div>
+      <div class="kv" title="${exact(v[1])} 元">${amtTxt(v[1])}</div>
       <div class="ks" style="justify-content:space-between"><span>销量 ${fmt(v[2])}</span><span>环比 ${momTxt}</span></div>
       <div class="pbar"><i style="width:${Math.min(share,100).toFixed(1)}%;background:${ac}"></i></div>
       <div class="ks" style="margin-top:5px;justify-content:space-between"><span>占比</span><b>${share.toFixed(1)}%</b></div></div>`;
@@ -367,15 +375,15 @@ function renderTop(){
       rows.push({name:it.name, group:it.group_name||'-', gname:g.name, amt:it.amt, tax:it.tax||0, qty:it.qty});
     });
   });
-  // 所属小组筛选（按当前渠道组下的实际 group_name 生成）
-  const subs = Array.from(new Set(rows.map(r=>r.group))).sort();
-  if(topSub!=='all' && subs.indexOf(topSub)<0) topSub='all';
+  // 渠道组下拉：始终列出全部渠道组（即使该组没有 Top 商品）
+  const names = all.map(g=>g.name);
+  if(topSub!=='all' && names.indexOf(topSub)<0) topSub='all';
   const ssel=document.getElementById('topSubSel');
   if(ssel){
-    ssel.innerHTML = ['all'].concat(subs).map(s=>
-      '<option value="'+s+'"'+(s===topSub?' selected':'')+'>'+(s==='all'?'全部小组':s)+'</option>').join('');
+    ssel.innerHTML = ['all'].concat(names).map(s=>
+      '<option value="'+s+'"'+(s===topSub?' selected':'')+'>'+(s==='all'?'全部渠道组':s)+'</option>').join('');
   }
-  if(topSub!=='all') rows = rows.filter(r=>r.group===topSub);
+  if(topSub!=='all') rows = rows.filter(r=>r.gname===topSub);
   rows.sort((a,b)=> topSort==='qty' ? (b.qty-a.qty) : (b.tax-a.tax));
   const el=document.getElementById('topItems');
   if(!rows.length){
@@ -580,11 +588,11 @@ function renderDaily(){
   const tD = tW/7;
 
   const cards = [
-    {l:'📦 日总含税收入',   v:'¥'+fmt(day),  ml:'环比昨日',     m:dMom(day,dayP), r:tD?day/tD*100:null, tn:'日目标完成率'},
+    {l:'📦 日总含税收入',   v:kpiTxt(day),  ml:'环比昨日',     m:dMom(day,dayP), r:tD?day/tD*100:null, tn:'日目标完成率'},
     {l:'📋 日订单量',     v:fmt(orders),      ml:'环比昨日',     m:dMom(orders,ordersP), r:null, tn:'日订单目标完成率'},
-    {l:'📊 周累计含税收入', v:'¥'+fmt(wk),   ml:'环比上周同期', m:dMom(wk,wkP),   r:tW?wk/tW*100:null, tn:'周目标完成率'},
-    {l:'📈 月累计含税收入', v:'¥'+fmt(mo),   ml:'环比上月同期', m:dMom(mo,moP),   r:tM?mo/tM*100:null, tn:'月目标完成率'},
-    {l:'📆 季度累计含税收入', v:'¥'+fmt(qt), ml:'环比上季度同期', m:dMom(qt,qtP), r:tQ?qt/tQ*100:null, tn:'季度目标完成率'}
+    {l:'📊 周累计含税收入', v:kpiTxt(wk),   ml:'环比上周同期', m:dMom(wk,wkP),   r:tW?wk/tW*100:null, tn:'周目标完成率'},
+    {l:'📈 月累计含税收入', v:kpiTxt(mo),   ml:'环比上月同期', m:dMom(mo,moP),   r:tM?mo/tM*100:null, tn:'月目标完成率'},
+    {l:'📆 季度累计含税收入', v:kpiTxt(qt), ml:'环比上季度同期', m:dMom(qt,qtP), r:tQ?qt/tQ*100:null, tn:'季度目标完成率'}
   ];
   const ACC5 = ['#3b82f6','#10b981','#8b5cf6','#f97316','#14b8a6'];
   grid.innerHTML = cards.map((c,i)=>{
