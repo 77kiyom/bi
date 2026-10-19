@@ -100,7 +100,7 @@ TEMPLATE = r"""<!DOCTYPE html>
     <div class="seg" id="channelSeg">
       <button data-c="抖音" class="on">抖音</button>
       <button data-c="快手" disabled title="待接入">快手</button>
-      <button data-c="视频号" disabled title="待接入">视频号</button>
+      <button data-c="视频号">视频号</button>
     </div>
   </div>
 
@@ -180,6 +180,10 @@ function presetRange(p){
 let salesRange = presetRange('week_cur');
 let achPeriod = 'week_cur';
 let achSort = 'default';
+let CH = '抖音';
+function groupsData(){ return CH==='视频号' ? ((DATA.video&&DATA.video.groups)||[]) : (DATA.groups||[]); }
+function achData(){ return CH==='视频号' ? ((DATA.video&&DATA.video.ach)||[]) : (DATA.ach||[]); }
+function topThreshold(){ return CH==='视频号' ? 1000 : 10000; }
 
 function sumRange(g,d0,d1){
   let a=0,t=0,q=0;
@@ -199,7 +203,7 @@ function topInRange(g,d0,d1){
       if(d1 && k>d1) continue;
       a+=dv[k][0]; q+=dv[k][2];
     }
-    if(a>=10000){
+    if(a>=topThreshold()){
       const info=(g.top_items.find(x=>x.item_id===iid))||{};
       out.push({item_id:iid, name:info.name||iid, group_name:info.group_name||'', amt:a, qty:q});
     }
@@ -210,8 +214,11 @@ function topInRange(g,d0,d1){
 
 function renderHeader(){
   const m=DATA.meta;
+  const vm=(CH==='视频号'&&DATA.video&&DATA.video.meta)?DATA.video.meta:null;
+  const rng=vm?`${vm.data_from} ~ ${vm.data_to}`:`${m.data_from} ~ ${m.data_to}`;
+  const upd=vm?vm.updated_at:m.updated_at;
   document.getElementById('subline').textContent =
-    `Q4（${m.quarter.start} 起） · 数据区间 ${m.data_from} ~ ${m.data_to} · 更新于 ${m.updated_at}`;
+    `${CH}渠道 · Q4（${m.quarter.start} 起） · 数据区间 ${rng} · 更新于 ${upd}`;
   const items=[
     ['本周', m.week.start+' ~ '+m.week.end, m.week.elapsed, m.week.total],
     [m.month.label, m.month.start+' ~ '+m.month.end, m.month.elapsed, m.month.total],
@@ -228,11 +235,11 @@ function renderHeader(){
 function renderSales(){
   const d0=salesRange[0], d1=salesRange[1];
   document.getElementById('salesNote').textContent = `（${d0} ~ ${d1}）`;
-  document.getElementById('topNote').textContent = `销售额 ≥ 1 万（${d0} ~ ${d1}）`;
+  document.getElementById('topNote').textContent = `销售额 ≥ ${topThreshold()>=10000?'1 万':'1000'}（${d0} ~ ${d1}）`;
   const len = Math.round((new Date(d1)-new Date(d0))/86400000)+1;
   const pv0 = addDays(d0,-len), pv1 = addDays(d0,-1);
   let cards='', rows='', tAll=[0,0,0];
-  DATA.groups.forEach(g=>{
+  groupsData().forEach(g=>{
     const v=sumRange(g,d0,d1); tAll[0]+=v[0]; tAll[1]+=v[1]; tAll[2]+=v[2];
     const pv=sumRange(g,pv0,pv1);
     const mom = pv[0]>0? ((v[0]-pv[0])/pv[0]*100) : null;
@@ -255,7 +262,7 @@ function renderSales(){
       <td colspan="4" class="muted">—</td></tr></tbody></table>`;
 
   let html='';
-  DATA.groups.forEach(g=>{
+  groupsData().forEach(g=>{
     const items=topInRange(g,d0,d1);
     html += `<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;color:var(--brand);margin-bottom:6px">
       ${g.name} <span class="tag">${items.length} 个品</span></div>`;
@@ -281,11 +288,11 @@ function achRange(p){
 function renderAch(){
   const p=achPeriod;
   const label={week_cur:'本周',week_prev:'上周',month:'本月',quarter:'Q4 季度'}[p];
-  document.getElementById('targetNote').textContent='抖音渠道 · '+label;
+  document.getElementById('targetNote').textContent=CH+'渠道 · '+label;
   const rg=achRange(p);
   document.getElementById('achRange').textContent='（'+rg[0]+' ~ '+rg[1]+'）';
   const tkey=(p==='week_cur'||p==='week_prev')?'week':(p==='month'?'month':'quarter');
-  let rows=(DATA.ach||[]).map(a=>{
+  let rows=achData().map(a=>{
     const act=a.actual[p]||0;
     const tg=(a.target||{})[tkey];
     const r=(tg&&tg>0)? act/tg*100 : null;
@@ -313,7 +320,7 @@ function renderAch(){
   });
   document.getElementById('targetTable').innerHTML =
     `<table><thead><tr><th>组</th><th>达成率</th><th>目标</th><th>达成</th></tr></thead><tbody>${trows}</tbody></table>
-     <div class="empty">目标为抖音渠道；各组分设目标（服配 / 服配-羽绒 各自独立）；「待填」表示尚未设目标。</div>`;
+     <div class="empty">目标为${CH}渠道；各组分设目标（服配 / 服配-羽绒 各自独立）；「待填」表示尚未设目标。</div>`;
   document.getElementById('achChart').innerHTML = chart +
     `<div class="muted" style="font-size:11.5px;margin-top:2px">灰线 = 100% 目标线（进度条满格为 150%）；鼠标悬停可看具体达成率</div>`;
 }
@@ -323,6 +330,13 @@ function setRangeInputs(){
   document.getElementById('sTo').value = salesRange[1];
 }
 
+document.getElementById('channelSeg').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b || b.disabled) return;
+  if(b.dataset.c==='视频号' && !DATA.video) return;
+  [...e.currentTarget.children].forEach(x=>x.classList.toggle('on', x===b));
+  CH=b.dataset.c;
+  renderHeader(); renderSales(); renderAch();
+});
 document.getElementById('salesSeg').addEventListener('click', e=>{
   const b=e.target.closest('button'); if(!b) return;
   [...e.currentTarget.children].forEach(x=>x.classList.toggle('on', x===b));
@@ -352,6 +366,7 @@ renderHeader();
 setRangeInputs();
 renderSales();
 renderAch();
+if(!DATA.video){ const vb=document.querySelector('#channelSeg button[data-c="视频号"]'); if(vb){ vb.disabled=true; vb.title='暂无视频号数据'; } }
 </script>
 </body>
 </html>

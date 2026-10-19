@@ -236,6 +236,12 @@ def main():
         for cid, did, nm in SYNC_COMPONENTS:
             fetch_sync(cid, did, nm, date_dir)
         update_flybook(date_dir)
+        # 视频号：独立报表(37523)，按天抓取（失败不阻断抖音主流程）
+        print('\n=== 抓取视频号数据 ===')
+        try:
+            subprocess.run([PY, os.path.join(BASE, 'fetch_video.py')], check=True)
+        except Exception as e:
+            print('  [警告] 视频号抓取失败(%s)，沿用已有 video_data.json' % type(e).__name__)
 
     print('\n=== 生成看板数据 ===')
     subprocess.run([PY, os.path.join(BASE, 'build_dashboard_data.py'),
