@@ -143,13 +143,13 @@ def fetch_day(channel, day):
             continue
         amt = _num(row[ix['销售额']])
         tax = _num(row[ix['含税收入']])
-        qty = _num(row[ix.get('qty_col', '销量')])
+        qty = _num(row[ix[cfg.get('qty_col', '销量')]])
         a = agg.setdefault(g, [0.0, 0.0, 0.0])
         a[0] += amt; a[1] += tax; a[2] += qty
         if amt > 0:
             items.append([d0, str(row[ix['item_id']]),
                           str(row[ix[cfg.get('name_col', 'item_name')]]),
-                          g, round(amt, 2), round(qty)])
+                          g, round(amt, 2), round(tax, 2), round(qty)])
     return channel, d0, agg, items
 
 
@@ -239,14 +239,15 @@ def fetch_order_channel(channel, d_from, d_to):
         k = (d, iid)
         it = items.get(k)
         if it is None:
-            it = items[k] = [d, iid, str(row[ix2[cfg['name_col']]]), g, 0.0, 0.0]
+            it = items[k] = [d, iid, str(row[ix2[cfg['name_col']]]), g, 0.0, 0.0, 0.0]
         it[4] += amt
-        it[5] += qty
+        it[5] += tax
+        it[6] += qty
 
     print('   有效订单行: %d | 覆盖日期: %d' % (n, len(daily)), flush=True)
     daily = {d: {g: [round(v[0], 2), round(v[1], 2), round(v[2])] for g, v in gs.items()}
              for d, gs in daily.items()}
-    items_out = [[v[0], v[1], v[2], v[3], round(v[4], 2), round(v[5])]
+    items_out = [[v[0], v[1], v[2], v[3], round(v[4], 2), round(v[5], 2), round(v[6])]
                  for v in items.values()]
     return daily, items_out
 

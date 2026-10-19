@@ -197,7 +197,7 @@ TEMPLATE = r"""<!DOCTYPE html>
     <div class="cards5" id="kpiGrid" style="margin-bottom:16px"></div>
     <div class="d-row2">
       <div class="panel" style="margin:0">
-        <h2>📉 近 7 天销售额趋势 <small>（万元）</small></h2>
+        <h2>📉 近 7 天含税收入趋势 <small>（万元）</small></h2>
         <div id="trendChart"></div>
       </div>
       <div class="panel" style="margin:0">
@@ -224,6 +224,13 @@ const exact = n => (n==null? '-' : Number(n).toLocaleString('zh-CN',{minimumFrac
 const wan = n => (n==null? '-' : (Number(n)/10000).toFixed(2)+'万');
 // 金额：显示 xx.xx万，鼠标悬停显示真实金额
 const money = n => `<span title="${exact(n)} 元">${wan(n)}</span>`;
+// 小额显示具体金额（<1万），大额显示 xx.xx万
+const money2 = n => {
+  if(n==null) return '-';
+  const v=Number(n);
+  const s = Math.abs(v) < 10000 ? fmt(v)+' 元' : (v/10000).toFixed(2)+'万';
+  return `<span title="${exact(v)} 元">${s}</span>`;
+};
 const iso = d => d.toISOString().slice(0,10);
 const addDays = (s,n) => { const d=new Date(s); d.setDate(d.getDate()+n); return iso(d); };
 
@@ -389,7 +396,7 @@ function renderTop(){
     '<th style="text-align:right">含税收入</th><th style="text-align:right">销量</th></tr></thead><tbody>';
   rows.forEach((it,i)=>{
     html+='<tr><td>'+(i+1)+'</td><td>'+it.name+'</td><td><span class="tag">'+it.group+'</span></td>'+
-      '<td>'+it.gname+'</td><td style="text-align:right">'+money(it.tax)+'</td>'+
+      '<td>'+it.gname+'</td><td style="text-align:right">'+money2(it.tax)+'</td>'+
       '<td style="text-align:right">'+fmt(it.qty)+'</td></tr>';
   });
   el.innerHTML = html+'</tbody></table>';
@@ -644,7 +651,7 @@ function renderDaily(){
   days.forEach((d,i)=>{
     const x0 = Math.max(PL, xf(i)-bw/2);
     const w0 = Math.min(bw, W-PR-x0);
-    const tip = d+' 销售额 ｜ '+series.map(s=>s.name+' '+fmtY(s.data[i])+' 元').join(' ｜ ');
+    const tip = d+' 含税收入 ｜ '+series.map(s=>s.name+' '+fmtY(s.data[i])+' 元').join(' ｜ ');
     svg+='<rect x="'+x0+'" y="'+PT+'" width="'+w0+'" height="'+ih+'" fill="transparent"><title>'+tip+'</title></rect>';
   });
   series.forEach(s=>{
@@ -691,7 +698,7 @@ function renderDaily(){
   alist.forEach((x,i)=>{
     const sh = totalDay? x.day/totalDay*100 : 0;
     ah+='<tr><td>'+(i+1)+'</td><td class="name">'+x.name+'</td>'+
-      '<td style="text-align:right">'+money(x.day)+'</td>'+
+      '<td style="text-align:right">'+money2(x.day)+'</td>'+
       '<td style="text-align:right">'+dMom(x.day,x.prev)+'</td>'+
       '<td style="text-align:right">'+sh.toFixed(1)+'%</td>'+
       '<td style="text-align:right">'+money(x.wk)+'</td>'+
@@ -726,7 +733,7 @@ function renderDaily(){
   ilist.forEach((x,i)=>{
     const sh = totalDay? x.day/totalDay*100 : 0;
     ih2+='<tr><td>'+(medal[i]||(i+1))+'</td><td class="name">'+x.name+'</td><td>'+x.group+'</td>'+
-      '<td style="text-align:right">'+money(x.day)+'</td>'+
+      '<td style="text-align:right">'+money2(x.day)+'</td>'+
       '<td style="text-align:right">'+sh.toFixed(1)+'%</td>'+
       '<td style="text-align:right">'+money(x.wk)+'</td>'+
       '<td style="text-align:right">'+money(x.mo)+'</td></tr>';

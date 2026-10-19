@@ -325,11 +325,11 @@ def main():
                         daily[date] = gs[gname]
                 item_daily = {}
                 for row in (chdata.get('items') or []):
-                    date, iid, name, g, amt, qty = row
+                    date, iid, name, g, amt, tax, qty = row
                     if g != gname:
                         continue
                     d = item_daily.setdefault(iid, {'name': name, 'daily': {}})
-                    d['daily'][date] = [amt, 0.0, qty]
+                    d['daily'][date] = [amt, tax, qty]
                 top = []
                 for iid, d in item_daily.items():
                     tot = sum(x[0] for x in d['daily'].values())
@@ -350,7 +350,7 @@ def main():
                     'month': [round(x, 2) for x in rng_sum(daily, m_start.isoformat(), m_end.isoformat())],
                     'quarter': [round(x, 2) for x in rng_sum(daily, Q4_START.isoformat(), Q4_END.isoformat())],
                     'top_items': top,
-                    'item_daily': {iid: {k: [round(x[0], 2), 0.0, round(x[2])]
+                    'item_daily': {iid: {k: [round(x[0], 2), round(x[1], 2), round(x[2])]
                                          for k, x in sorted(d['daily'].items())}
                                    for iid, d in item_daily.items()},
                     'target': (targets or {}).get(gname, {'week': None, 'month': None, 'quarter': None}),
