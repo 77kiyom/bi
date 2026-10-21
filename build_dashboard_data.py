@@ -26,15 +26,19 @@ BJ_TZ = datetime.timezone(datetime.timedelta(hours=8))
 
 # 四个组定义：name -> (group_names, mode, use_keep, extra_exclude_file)
 GROUP_DEFS = [
-    ('家纺', {'床品床垫组'}, 'exclude', True, None),
+    ('家纺', {'床品床垫组', '家纺组'}, 'exclude', True, None),
     ('家具百货组', {'家具组', '家居餐厨组', '电器周边组'}, 'exclude', True,
      'data/furniture_extra_exclude.json'),
     ('服配', {'服配组', '服装非羽绒组', '运动出行组'}, 'exclude', True, None),
     ('服配-羽绒', {'羽绒组'}, 'exclude', True, None),
-    ('短视频', {'家具组', '家居餐厨组', '床品床垫组', '服装非羽绒组', '服配组',
+    ('短视频', {'家具组', '家居餐厨组', '床品床垫组', '家纺组', '服装非羽绒组', '服配组',
              '未归类', '电器周边组', '羽绒组', '运动出行组'}, 'include', False, None),
 ]
 KEEP_GROUPS = {'商务组', '其他', '待匹配'}
+
+# 商品表 group 名称别名（BI 侧改名时在此对齐，口径不变）
+# 2026-10-21 起 BI 把「床品床垫组」改名为「家纺组」，商品 item_id 集合完全一致（67 个）
+GROUP_ALIAS = {'家纺组': '床品床垫组'}
 
 # 达成率分组（抖音渠道）：显示名 -> (成员组列表, 目标 {'week','month','quarter'})，单位元。
 # 来源：用户提供的 Q4 时间进度表（2026年W41）。
@@ -119,9 +123,10 @@ def load_items(data_dir, all_groups):
         h = next(r)
         pg, pi, pn = h.index('group'), h.index('item_id'), h.index('item_name')
         for row in r:
-            if row[pg] in all_groups:
+            gname = GROUP_ALIAS.get(row[pg].strip(), row[pg].strip())
+            if gname in all_groups:
                 try:
-                    items[str(int(float(row[pi])))] = (row[pn], row[pg])
+                    items[str(int(float(row[pi])))] = (row[pn], gname)
                 except ValueError:
                     pass
     return items
@@ -149,6 +154,13 @@ def main():
     for _, gs, _, _, _ in GROUP_DEFS:
         all_groups |= gs
     items = load_items(data_dir, all_groups)
+    # 改名预警：商品表里出现了 GROUP_DEFS 未覆盖的分组名（BI 侧改名会导致该组直接归零）
+    _known = set()
+    for _d in GROUP_DEFS:
+        _known |= set(_d[1])
+    _unknown = sorted({v[1] for v in items.values()} - _known)
+    if _unknown:
+        print('  [警告] 商品表里有未映射的分组名（可能导致该组数据为 0）:', _unknown)
 
     # 额外排除
     extra_excl = {}

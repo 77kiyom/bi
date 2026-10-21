@@ -456,8 +456,10 @@ function renderAch(){
     const w=Math.min(rv,150)/150*100;
     const col=rv>=100?'var(--down)':(rv>=80?'var(--amber)':'var(--up)');
     const win=(r!=null && tp>0)? (r-tp) : null;
-    const winTxt=win==null? '<span class="muted">-</span>'
-      : `<span style="color:${win>=0?'var(--up)':'var(--down)'}">${win>=0?'领先':'落后'} ${Math.abs(win).toFixed(1)}pp</span>`;
+    const winTxt = win==null? '<span class="muted">-</span>'
+      : (tp>=99.9
+          ? `<span style="color:${(r-100)>=0?'var(--up)':'var(--down)'}">距目标 ${(r-100)>=0?'+':''}${(r-100).toFixed(1)}pp</span>`
+          : `<span style="color:${win>=0?'var(--up)':'var(--down)'}">${win>=0?'领先':'落后'} ${Math.abs(win).toFixed(1)}pp</span>`);
     const sp=(a.split&&a.split['视频号']&&a.split['小红书'])
       ? `（视频号 ${exact(a.split['视频号'].tax[p])} + 小红书 ${exact(a.split['小红书'].tax[p])}）` : '';
     const tip=(tg&&tg>0)

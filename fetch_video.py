@@ -43,7 +43,7 @@ Q4_START = datetime.date(2026, 10, 1)
 BJ_TZ = datetime.timezone(datetime.timedelta(hours=8))
 
 STANDARD_GROUP_MAP = {
-    '床品床垫组': '家纺',
+    '床品床垫组': '家纺', '家纺组': '家纺',
     '家具组': '家具百货组', '家居餐厨组': '家具百货组', '电器周边组': '家具百货组',
     '服配组': '服配',
     '羽绒组': '服配-羽绒',
