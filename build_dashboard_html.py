@@ -108,6 +108,7 @@ TEMPLATE = r"""<!DOCTYPE html>
   .pbar-label{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:9px;margin-bottom:4px}
   .kpi .kv{font-variant-numeric:tabular-nums}
   @media(max-width:900px){ .d-row2{grid-template-columns:1fr} }
+  #trendChart svg{max-width:860px;display:block;margin:0 auto}
 </style>
 </head>
 <body>
@@ -193,14 +194,24 @@ TEMPLATE = r"""<!DOCTYPE html>
   <!-- ════ 日报视图 ════ -->
   <div id="viewDaily" style="display:none">
     <div class="cards5" id="kpiGrid" style="margin-bottom:16px"></div>
-    <div class="d-row2">
-      <div class="panel" style="margin:0">
-        <h2>📉 近 7 天含税收入趋势 <small>（万元）</small></h2>
-        <div id="trendChart"></div>
+    <div class="panel" style="margin-bottom:16px">
+      <h2>📉 近 7 天含税收入趋势 <small>（万元）</small></h2>
+      <div id="trendChart"></div>
+    </div>
+    <div class="panel">
+      <h2>🔥 爆品销量 <small>（分渠道组）</small></h2>
+      <div class="filterbar" style="margin-bottom:12px;padding:8px 10px">
+        <span class="lb">显示</span>
+        <select id="boomSel" style="border:1px solid var(--line);border-radius:7px;padding:6px 8px;
+          font-size:12.5px;font-family:inherit;background:#fff;color:var(--txt)">
+          <option value="both">日销量 + 周销量</option>
+          <option value="day">只看日销量</option>
+          <option value="week">只看周销量</option>
+        </select>
       </div>
-      <div class="panel" style="margin:0">
-        <h2>🔥 爆品周完成率 <small>（分品线）</small></h2>
-        <div id="boomTable"></div>
+      <div class="d-row2" style="margin-bottom:0">
+        <div id="boomDay"></div>
+        <div id="boomWeek"></div>
       </div>
     </div>
     <div class="panel" style="margin-top:16px">
@@ -250,6 +261,7 @@ function presetRange(p){
 }
 
 let salesRange = presetRange('week_cur');
+let salesPreset = 'week_cur';
 let achPeriod = 'week_cur';
 let achSort = 'default';
 let CH = '抖音';
@@ -342,13 +354,20 @@ function renderSales(){
     const mom = pv[1]>0? ((v[1]-pv[1])/pv[1]*100) : null;
     const momTxt = mom==null? '<span class="muted">-</span>' :
       `<b style="color:${mom>=0?'var(--up)':'var(--down)'}">${mom>=0?'▲':'▼'} ${Math.abs(mom).toFixed(1)}%</b>`;
-    const share = grand>0? v[1]/grand*100 : 0;
+    const tkey = (salesPreset==='week_cur'||salesPreset==='week_prev') ? 'week'
+               : (salesPreset==='month' ? 'month' : 'quarter');
+    const pLabel = (salesPreset==='week_cur')?'本周':(salesPreset==='week_prev')?'上周'
+                 : (salesPreset==='month')?'本月':'季度';
+    const baseName = g.name.replace('（视频号）','').replace('（小红书）','');
+    const achG = achData().find(a=>a.name===baseName);
+    const tg = (achG && achG.target) ? achG.target[tkey] : null;
+    const rate = (tg && tg>0) ? (v[1]/tg*100) : null;
     const ac = ACC[gi%ACC.length];
     cards += `<div class="kpi" style="border-left:4px solid ${ac}"><div class="kl">${g.name}</div>
       <div class="kv" title="${exact(v[1])} 元">${amtTxt(v[1])}</div>
       <div class="ks" style="justify-content:space-between"><span>销量 ${fmt(v[2])}</span><span>环比 ${momTxt}</span></div>
-      <div class="pbar"><i style="width:${Math.min(share,100).toFixed(1)}%;background:${ac}"></i></div>
-      <div class="ks" style="margin-top:5px;justify-content:space-between"><span>占比</span><b>${share.toFixed(1)}%</b></div></div>`;
+      <div class="pbar"><i style="width:${rate==null?0:Math.min(rate,100).toFixed(1)}%;background:${ac}"></i></div>
+      <div class="ks" style="margin-top:5px;justify-content:space-between"><span>${pLabel}目标完成率</span><b>${rate==null?'—':rate.toFixed(1)+'%'}</b></div></div>`;
     rows += `<tr><td class="name">${g.name}</td>
       <td>${money(v[0])}</td><td>${money(v[1])}</td><td>${fmt(v[2])}</td>
       <td>${money(g.week_cur[0])}</td><td>${money(g.week_prev[0])}</td>
@@ -484,6 +503,46 @@ function setRangeInputs(){
   document.getElementById('sTo').value = salesRange[1];
 }
 
+let boomMode='both';
+function boomRows(which){
+  const ex=DATA.extra||{};
+  const LATEST=(ex.meta&&ex.meta.data_to)||(DATA.meta&&DATA.meta.data_to);
+  const w0=addDays(LATEST,-6);
+  return (DATA.boom||[]).map(b=>{
+    const dv=b.daily||{};
+    let qty=0, tax=0;
+    for(const k in dv){
+      const inR=(which==='day') ? (k===LATEST) : (k>=w0 && k<=LATEST);
+      if(inR){ tax += (dv[k][1]||0); qty += (dv[k][2]||0); }
+    }
+    return {group:b.group, label:b.label, qty:qty, tax:tax};
+  });
+}
+function boomTable(which, title){
+  const list=boomRows(which);
+  let html='<div style="font-size:13px;font-weight:700;margin-bottom:8px">'+title+'</div>';
+  if(!list.length) return html+'<div class="empty">暂无爆品配置</div>';
+  html+='<table><thead><tr><th>渠道组</th><th>爆品</th>'+
+    '<th style="text-align:right">销量</th><th style="text-align:right">含税收入</th></tr></thead><tbody>';
+  list.forEach(x=>{
+    html+='<tr><td class="name">'+x.group+'</td><td>'+x.label+'</td>'+
+      '<td style="text-align:right">'+(x.qty?fmt(x.qty):'<span class="muted">0</span>')+'</td>'+
+      '<td style="text-align:right">'+money(x.tax)+'</td></tr>';
+  });
+  return html+'</tbody></table>';
+}
+function renderBoom(){
+  const dEl=document.getElementById('boomDay'), wEl=document.getElementById('boomWeek');
+  if(!dEl||!wEl) return;
+  const ex=DATA.extra||{};
+  const LATEST=(ex.meta&&ex.meta.data_to)||(DATA.meta&&DATA.meta.data_to);
+  dEl.innerHTML=boomTable('day','📅 当日销量（'+LATEST+'）');
+  dEl.style.display=(boomMode==='week')?'none':'';
+  wEl.innerHTML=boomTable('week','🗓️ 近 7 天销量');
+  wEl.style.display=(boomMode==='day')?'none':'';
+}
+document.getElementById('boomSel').addEventListener('change', e=>{ boomMode=e.target.value; renderBoom(); });
+
 document.getElementById('channelSeg').addEventListener('click', e=>{
   const b=e.target.closest('button'); if(!b || b.disabled) return;
   const v = b.dataset.v || 'channel';
@@ -508,12 +567,14 @@ document.getElementById('salesSeg').addEventListener('click', e=>{
   const b=e.target.closest('button'); if(!b) return;
   [...e.currentTarget.children].forEach(x=>x.classList.toggle('on', x===b));
   salesRange = presetRange(b.dataset.p);
+  salesPreset = b.dataset.p;
   setRangeInputs(); renderSales();
 });
 ['sFrom','sTo'].forEach(id=>document.getElementById(id).addEventListener('change', ()=>{
   const a=document.getElementById('sFrom').value, b=document.getElementById('sTo').value;
   if(a && b){
     salesRange=[a,b];
+    salesPreset='custom';
     document.querySelectorAll('#salesSeg button').forEach(x=>x.classList.remove('on'));
     renderSales();
   }
@@ -662,24 +723,7 @@ function renderDaily(){
   legend+='</div>';
   document.getElementById('trendChart').innerHTML = svg+legend;
 
-  // 爆品周完成率（分品线）—— 数据待接入，保留表格位置
-  const weeks=[]; let ws=wStart;
-  for(let i=0;i<4;i++){ weeks.unshift(ws); ws=addDays(ws,-7); }
-  const weekNo = s => {
-    const d = new Date(s+'T00:00:00Z');
-    const jan1 = new Date(Date.UTC(d.getUTCFullYear(),0,1));
-    return Math.floor((d-jan1)/604800000)+1;
-  };
-  let bh='<table><thead><tr><th>品线</th>';
-  weeks.forEach(w=>{ bh+='<th style="text-align:right">第'+weekNo(w)+'周</th>'; });
-  bh+='<th style="text-align:right">周环比</th></tr></thead><tbody>';
-  ['家纺','家具百货组','服配','服配-羽绒'].forEach(nm=>{
-    bh+='<tr><td class="name">'+nm+'</td>';
-    for(let i=0;i<4;i++) bh+='<td style="text-align:right"><span class="muted">—</span></td>';
-    bh+='<td style="text-align:right"><span class="muted">—</span></td></tr>';
-  });
-  bh+='</tbody></table><div class="empty" style="margin-top:6px">爆品周完成率数据待接入（表格位置已保留）</div>';
-  document.getElementById('boomTable').innerHTML = bh;
+  renderBoom();
 
   // Top 达人 / 直播间
   const totalDay = day;

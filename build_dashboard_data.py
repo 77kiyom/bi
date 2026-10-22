@@ -36,6 +36,15 @@ GROUP_DEFS = [
 ]
 KEEP_GROUPS = {'商务组', '其他', '待匹配'}
 
+# 爆品榜：按商品名称关键词匹配（跨组统计，不受 GROUP_DEFS 限制）
+# (展示用渠道组, 爆品展示名, 关键词列表)
+BOOM_ITEMS = [
+    ('家纺',      '热力被',        ['热力被']),
+    ('家具百货组', 'C70Max 任意桌',  ['c70max']),
+    ('服配-羽绒',  '小胖子（泡芙）',  ['小胖子']),
+    ('服配',      '保暖内衣',       ['保暖内衣', '保暖衣']),
+]
+
 # 商品表 group 名称别名（BI 侧改名时在此对齐，口径不变）
 # 2026-10-21 起 BI 把「床品床垫组」改名为「家纺组」，商品 item_id 集合完全一致（67 个）
 GROUP_ALIAS = {'家纺组': '床品床垫组'}
@@ -116,6 +125,42 @@ def load_combo_group(data_dir):
     return {k: max(g.items(), key=lambda x: x[1])[0] for k, g in combo.items()}
 
 
+def load_boom_items(data_dir):
+    """爆品：按商品名关键词匹配，**只取属于目标渠道组的链接**；
+    若该组内一个链接都没有（BI 分组可能有误），回退到全部匹配链接并在日志里提示。"""
+    p = os.path.join(data_dir, 'product_table_full.csv')
+    if not os.path.exists(p):
+        return {}
+    members = {d[0]: set(d[1]) for d in GROUP_DEFS}
+    cand = {}
+    with open(p, encoding='utf-8-sig') as f:
+        r = csv.reader(f); h = next(r)
+        pi, pn, pg = h.index('item_id'), h.index('item_name'), h.index('group')
+        for row in r:
+            nm = row[pn] or ''
+            grp = GROUP_ALIAS.get(row[pg].strip(), row[pg].strip())
+            for bg, bl, kws in BOOM_ITEMS:
+                if any(k.lower() in nm.lower() for k in kws):
+                    try:
+                        cand.setdefault((bg, bl), []).append((str(int(float(row[pi]))), grp))
+                    except ValueError:
+                        pass
+                    break
+    out = {}
+    for (bg, bl), lst in cand.items():
+        mem = members.get(bg, set())
+        hit = [(iid, g) for iid, g in lst if g in mem]
+        if hit:
+            for iid, _ in hit:
+                out[iid] = (bg, bl)
+        else:
+            print('  [提示] 爆品「%s」在「%s」组内没有链接，已回退统计全部链接（BI 归组=%s）'
+                  % (bl, bg, '/'.join(sorted({g for _, g in lst})) or '无'))
+            for iid, _ in lst:
+                out[iid] = (bg, bl)
+    return out
+
+
 def load_items(data_dir, all_groups):
     items = {}
     with open(os.path.join(data_dir, 'product_table_full.csv'), encoding='utf-8-sig') as f:
@@ -154,6 +199,7 @@ def main():
     for _, gs, _, _, _ in GROUP_DEFS:
         all_groups |= gs
     items = load_items(data_dir, all_groups)
+    boom_by_item = load_boom_items(data_dir)
     # 改名预警：商品表里出现了 GROUP_DEFS 未覆盖的分组名（BI 侧改名会导致该组直接归零）
     _known = set()
     for _d in GROUP_DEFS:
@@ -191,18 +237,24 @@ def main():
     order_sets = defaultdict(set)
     anchors = {}   # 主播名称 -> {'id':..., 'daily': {date: [amt, qty]}}
 
+    boom = {}
     for row in rr:
         dt = row[di]
         if not (args.date_from <= dt <= (args.date_to or '9999-12-31')):
             continue
-        if row[ii] not in items:
-            continue
         # 剔除小红书订单（抖音明细里 店铺='小红书' 的行属于小红书渠道，不计入抖音）
         if row[shop_idx] == '小红书':
             continue
+        s = _num(row[si]); t = _num(row[ti]); q = _num(row[qi])
+        # 爆品榜：按商品名关键词跨组统计
+        bm = boom_by_item.get(row[ii])
+        if bm:
+            bd = boom.setdefault(bm, defaultdict(lambda: [0.0, 0.0, 0.0]))
+            bd[dt][0] += s; bd[dt][1] += t; bd[dt][2] += q
+        if row[ii] not in items:
+            continue
         a = row[ai]
         g = combo_group.get((a, row[shop_idx]), '')
-        s = _num(row[si]); t = _num(row[ti]); q = _num(row[qi])
         all_dates.add(dt)
         matched_main = False
         for name, gs, mode, use_keep, _ in GROUP_DEFS:
@@ -410,7 +462,11 @@ def main():
                         'groups': ks_groups, 'ach': ks_ach}
 
     out = {'meta': meta, 'groups': groups_out, 'ach': ach_out,
-           'video': video_out, 'kuaishou': kuaishou_out}
+           'video': video_out, 'kuaishou': kuaishou_out,
+           'boom': [{'group': bg, 'label': bl,
+                     'daily': {k: [round(x[0], 2), round(x[1], 2), round(x[2])]
+                               for k, x in sorted(v.items())}}
+                    for (bg, bl), v in boom.items()]}
     json.dump(out, open(out_path, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     # 日报附加数据：按日订单量（去重）+ 达人日明细
     extra = {
