@@ -536,7 +536,7 @@ function renderBoom(){
       '<td style="text-align:right">'+money(x.tax)+'</td></tr>';
   });
   el.innerHTML=html+'</tbody></table>'+
-    '<div class="muted" style="font-size:11px;margin-top:6px">本组销量 = 仅统计本渠道组口径（商务组/其他/待匹配）；全量销量 = 该爆品所有主播（含直播组等）</div>';
+    '<div class="muted" style="font-size:11px;margin-top:6px">全渠道合计（抖音+快手+视频号+小红书）｜本组销量 = 抖音仅商务组口径；全量销量 = 含抖音直播组/店铺组</div>';
 }
 document.getElementById('boomSel').addEventListener('change', e=>{ boomMode=e.target.value; renderBoom(); });
 

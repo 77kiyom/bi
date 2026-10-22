@@ -394,6 +394,20 @@ def main():
     if os.path.exists(vp):
         v = json.load(open(vp, encoding='utf-8'))
         chs = v.get('channels') or {}
+        # 爆品榜：补入 快手 / 视频号 / 小红书 的商品级数据，做成全渠道合计
+        for _cd in chs.values():
+            for _row in (_cd.get('items') or []):
+                if len(_row) < 7:
+                    continue
+                _dt, _iid, _nm, _g, _amt, _tax, _qty = _row[:7]
+                for _bg, _bl, _kws in BOOM_ITEMS:
+                    if any(k.lower() in (_nm or '').lower() for k in _kws):
+                        for _tgt in (boom, boom_all):
+                            _bd = _tgt.setdefault((_bg, _bl), defaultdict(lambda: [0.0, 0.0, 0.0]))
+                            _bd[_dt][0] += _amt
+                            _bd[_dt][1] += _tax
+                            _bd[_dt][2] += _qty
+                        break
 
         def _build_channel(chdata, order, targets):
             res = []
