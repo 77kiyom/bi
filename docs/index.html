@@ -184,24 +184,22 @@
   <!-- ════ 日报视图 ════ -->
   <div id="viewDaily" style="display:none">
     <div class="cards5" id="kpiGrid" style="margin-bottom:16px"></div>
-    <div class="panel" style="margin-bottom:16px">
-      <h2>📉 近 7 天含税收入趋势 <small>（万元）</small></h2>
-      <div id="trendChart"></div>
-    </div>
-    <div class="panel">
-      <h2>🔥 爆品销量 <small>（分渠道组）</small></h2>
-      <div class="filterbar" style="margin-bottom:12px;padding:8px 10px">
-        <span class="lb">显示</span>
-        <select id="boomSel" style="border:1px solid var(--line);border-radius:7px;padding:6px 8px;
-          font-size:12.5px;font-family:inherit;background:#fff;color:var(--txt)">
-          <option value="both">日销量 + 周销量</option>
-          <option value="day">只看日销量</option>
-          <option value="week">只看周销量</option>
-        </select>
+    <div class="d-row2">
+      <div class="panel" style="margin:0">
+        <h2>📉 近 7 天含税收入趋势 <small>（万元）</small></h2>
+        <div id="trendChart"></div>
       </div>
-      <div class="d-row2" style="margin-bottom:0">
-        <div id="boomDay"></div>
-        <div id="boomWeek"></div>
+      <div class="panel" style="margin:0">
+        <h2>🔥 爆品榜 <small>（分渠道组）</small></h2>
+        <div class="filterbar" style="margin-bottom:10px;padding:8px 10px">
+          <span class="lb">口径</span>
+          <select id="boomSel" style="border:1px solid var(--line);border-radius:7px;padding:6px 8px;
+            font-size:12.5px;font-family:inherit;background:#fff;color:var(--txt)">
+            <option value="day">日销量</option>
+            <option value="week">周销量</option>
+          </select>
+        </div>
+        <div id="boomTable"></div>
       </div>
     </div>
     <div class="panel" style="margin-top:16px">
@@ -493,7 +491,7 @@ function setRangeInputs(){
   document.getElementById('sTo').value = salesRange[1];
 }
 
-let boomMode='both';
+let boomMode='day';
 function boomRows(which){
   const ex=DATA.extra||{};
   const LATEST=(ex.meta&&ex.meta.data_to)||(DATA.meta&&DATA.meta.data_to);
@@ -508,28 +506,19 @@ function boomRows(which){
     return {group:b.group, label:b.label, qty:qty, tax:tax};
   });
 }
-function boomTable(which, title){
-  const list=boomRows(which);
-  let html='<div style="font-size:13px;font-weight:700;margin-bottom:8px">'+title+'</div>';
-  if(!list.length) return html+'<div class="empty">暂无爆品配置</div>';
-  html+='<table><thead><tr><th>渠道组</th><th>爆品</th>'+
+function renderBoom(){
+  const el=document.getElementById('boomTable');
+  if(!el) return;
+  const list=boomRows(boomMode);
+  if(!list.length){ el.innerHTML='<div class="empty">暂无爆品配置</div>'; return; }
+  let html='<table><thead><tr><th>渠道组</th><th>爆品</th>'+
     '<th style="text-align:right">销量</th><th style="text-align:right">含税收入</th></tr></thead><tbody>';
   list.forEach(x=>{
     html+='<tr><td class="name">'+x.group+'</td><td>'+x.label+'</td>'+
       '<td style="text-align:right">'+(x.qty?fmt(x.qty):'<span class="muted">0</span>')+'</td>'+
       '<td style="text-align:right">'+money(x.tax)+'</td></tr>';
   });
-  return html+'</tbody></table>';
-}
-function renderBoom(){
-  const dEl=document.getElementById('boomDay'), wEl=document.getElementById('boomWeek');
-  if(!dEl||!wEl) return;
-  const ex=DATA.extra||{};
-  const LATEST=(ex.meta&&ex.meta.data_to)||(DATA.meta&&DATA.meta.data_to);
-  dEl.innerHTML=boomTable('day','📅 当日销量（'+LATEST+'）');
-  dEl.style.display=(boomMode==='week')?'none':'';
-  wEl.innerHTML=boomTable('week','🗓️ 近 7 天销量');
-  wEl.style.display=(boomMode==='day')?'none':'';
+  el.innerHTML=html+'</tbody></table>';
 }
 document.getElementById('boomSel').addEventListener('change', e=>{ boomMode=e.target.value; renderBoom(); });
 
