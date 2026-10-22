@@ -507,13 +507,18 @@ function boomRows(which){
   const LATEST=(ex.meta&&ex.meta.data_to)||(DATA.meta&&DATA.meta.data_to);
   const w0=addDays(LATEST,-6);
   return (DATA.boom||[]).map(b=>{
-    const dv=b.daily||{};
-    let qty=0, tax=0;
+    const dv=b.daily||{}, da=b.daily_all||{};
+    const hasAll = !!b.daily_all;
+    let qty=0, tax=0, qtyAll=0;
     for(const k in dv){
       const inR=(which==='day') ? (k===LATEST) : (k>=w0 && k<=LATEST);
       if(inR){ tax += (dv[k][1]||0); qty += (dv[k][2]||0); }
     }
-    return {group:b.group, label:b.label, qty:qty, tax:tax};
+    for(const k in da){
+      const inR=(which==='day') ? (k===LATEST) : (k>=w0 && k<=LATEST);
+      if(inR){ qtyAll += (da[k][2]||0); }
+    }
+    return {group:b.group, label:b.label, qty:qty, tax:tax, qtyAll:hasAll?qtyAll:null};
   });
 }
 function renderBoom(){
@@ -522,13 +527,16 @@ function renderBoom(){
   const list=boomRows(boomMode);
   if(!list.length){ el.innerHTML='<div class="empty">暂无爆品配置</div>'; return; }
   let html='<table><thead><tr><th>渠道组</th><th>爆品</th>'+
-    '<th style="text-align:right">销量</th><th style="text-align:right">含税收入</th></tr></thead><tbody>';
+    '<th style="text-align:right">本组销量</th><th style="text-align:right">全量销量</th>'+
+    '<th style="text-align:right">含税收入</th></tr></thead><tbody>';
   list.forEach(x=>{
     html+='<tr><td class="name">'+x.group+'</td><td>'+x.label+'</td>'+
       '<td style="text-align:right">'+(x.qty?fmt(x.qty):'<span class="muted">0</span>')+'</td>'+
+      '<td style="text-align:right" class="muted">'+(x.qtyAll==null?'-':fmt(x.qtyAll))+'</td>'+
       '<td style="text-align:right">'+money(x.tax)+'</td></tr>';
   });
-  el.innerHTML=html+'</tbody></table>';
+  el.innerHTML=html+'</tbody></table>'+
+    '<div class="muted" style="font-size:11px;margin-top:6px">本组销量 = 仅统计本渠道组口径（商务组/其他/待匹配）；全量销量 = 该爆品所有主播（含直播组等）</div>';
 }
 document.getElementById('boomSel').addEventListener('change', e=>{ boomMode=e.target.value; renderBoom(); });
 

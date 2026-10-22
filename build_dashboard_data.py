@@ -45,6 +45,9 @@ BOOM_ITEMS = [
     ('服配',      '保暖内衣',       ['保暖内衣', '保暖衣']),
 ]
 
+# 爆品统计时沿用的目标组口径：(mode, use_keep)
+BOOM_SPEC = {d[0]: (d[2], d[3]) for d in GROUP_DEFS}
+
 # 商品表 group 名称别名（BI 侧改名时在此对齐，口径不变）
 # 2026-10-21 起 BI 把「床品床垫组」改名为「家纺组」，商品 item_id 集合完全一致（67 个）
 GROUP_ALIAS = {'家纺组': '床品床垫组'}
@@ -238,6 +241,7 @@ def main():
     anchors = {}   # 主播名称 -> {'id':..., 'daily': {date: [amt, qty]}}
 
     boom = {}
+    boom_all = {}
     for row in rr:
         dt = row[di]
         if not (args.date_from <= dt <= (args.date_to or '9999-12-31')):
@@ -246,15 +250,26 @@ def main():
         if row[shop_idx] == '小红书':
             continue
         s = _num(row[si]); t = _num(row[ti]); q = _num(row[qi])
-        # 爆品榜：按商品名关键词跨组统计
-        bm = boom_by_item.get(row[ii])
-        if bm:
-            bd = boom.setdefault(bm, defaultdict(lambda: [0.0, 0.0, 0.0]))
-            bd[dt][0] += s; bd[dt][1] += t; bd[dt][2] += q
-        if row[ii] not in items:
-            continue
         a = row[ai]
         g = combo_group.get((a, row[shop_idx]), '')
+        # 爆品榜：按商品名关键词统计，并沿用目标渠道组的业务口径（KEEP_GROUPS / uid 排除），
+        # 否则会把非商务组主播（如直播组）也算进来，导致远超该组总量
+        bm = boom_by_item.get(row[ii])
+        if bm:
+            ba = boom_all.setdefault(bm, defaultdict(lambda: [0.0, 0.0, 0.0]))
+            ba[dt][0] += s; ba[dt][1] += t; ba[dt][2] += q
+            spec = BOOM_SPEC.get(bm[0])
+            ok = True
+            if spec:
+                if spec[1] and g not in KEEP_GROUPS:
+                    ok = False
+                if spec[0] == 'exclude' and (a in uids or a in extra_excl.get(bm[0], set())):
+                    ok = False
+            if ok:
+                bd = boom.setdefault(bm, defaultdict(lambda: [0.0, 0.0, 0.0]))
+                bd[dt][0] += s; bd[dt][1] += t; bd[dt][2] += q
+        if row[ii] not in items:
+            continue
         all_dates.add(dt)
         matched_main = False
         for name, gs, mode, use_keep, _ in GROUP_DEFS:
@@ -465,8 +480,10 @@ def main():
            'video': video_out, 'kuaishou': kuaishou_out,
            'boom': [{'group': bg, 'label': bl,
                      'daily': {k: [round(x[0], 2), round(x[1], 2), round(x[2])]
-                               for k, x in sorted(v.items())}}
-                    for (bg, bl), v in boom.items()]}
+                               for k, x in sorted(boom.get((bg, bl), {}).items())},
+                     'daily_all': {k: [round(x[0], 2), round(x[1], 2), round(x[2])]
+                                   for k, x in sorted(boom_all.get((bg, bl), {}).items())}}
+                    for (bg, bl) in boom_all.keys()]}
     json.dump(out, open(out_path, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     # 日报附加数据：按日订单量（去重）+ 达人日明细
     extra = {
