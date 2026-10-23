@@ -529,7 +529,8 @@ function renderBoom(){
       '<td style="text-align:right">'+money(x.tax)+'</td></tr>';
   });
   el.innerHTML=html+'</tbody></table>'+
-    '<div class="muted" style="font-size:11px;margin-top:6px">统一口径：抖音 + 快手 + 视频号 + 小红书全部订单，按商品名关键词匹配后，销量与含税收入直接相加（不区分主播分组）</div>';
+    '<div class="muted" style="font-size:11px;margin-top:6px">口径：抖音仅「商务组/其他/待匹配」主播（已剔除店铺=小红书）+ 快手 + 视频号 + 小红书，按商品名关键词匹配后求和</div>'+
+    '<div class="muted" style="font-size:11px;margin-top:3px">关键词：热力被 / C70（含 C70、C70Pro、C70Max、C70Ultra 共 6 个链接）/ 小胖子 / 保暖内衣</div>';
 }
 document.getElementById('boomSel').addEventListener('change', e=>{ boomMode=e.target.value; renderBoom(); });
 

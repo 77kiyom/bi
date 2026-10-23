@@ -40,7 +40,7 @@ KEEP_GROUPS = {'商务组', '其他', '待匹配'}
 # (展示用渠道组, 爆品展示名, 关键词列表)
 BOOM_ITEMS = [
     ('家纺',      '热力被',        ['热力被']),
-    ('家具百货组', 'C70Max 任意桌',  ['c70max']),
+    ('家具百货组', 'C70 任意桌系列',  ['c70']),
     ('服配-羽绒',  '小胖子（泡芙）',  ['小胖子']),
     ('服配',      '保暖内衣',       ['保暖内衣', '保暖衣']),
 ]
@@ -253,11 +253,19 @@ def main():
         g = combo_group.get((a, row[shop_idx]), '')
         # 爆品榜：按商品名关键词统计，并沿用目标渠道组的业务口径（KEEP_GROUPS / uid 排除），
         # 否则会把非商务组主播（如直播组）也算进来，导致远超该组总量
-        # 爆品榜：统一口径 —— 全渠道订单里按商品名关键词匹配，销量/含税直接相加
+        # 爆品榜：沿用组级筛选规则（KEEP_GROUPS + uid 排除），保证结果 ≤ 该组总量
         bm = boom_by_item.get(row[ii])
         if bm:
-            bd = boom.setdefault(bm, defaultdict(lambda: [0.0, 0.0, 0.0]))
-            bd[dt][0] += s; bd[dt][1] += t; bd[dt][2] += q
+            spec = BOOM_SPEC.get(bm[0])
+            ok = True
+            if spec:
+                if spec[1] and g not in KEEP_GROUPS:
+                    ok = False
+                if spec[0] == 'exclude' and (a in uids or a in extra_excl.get(bm[0], set())):
+                    ok = False
+            if ok:
+                bd = boom.setdefault(bm, defaultdict(lambda: [0.0, 0.0, 0.0]))
+                bd[dt][0] += s; bd[dt][1] += t; bd[dt][2] += q
         if row[ii] not in items:
             continue
         all_dates.add(dt)
