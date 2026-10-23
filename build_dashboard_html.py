@@ -518,11 +518,11 @@ function boomRows(which){
       const inR=(which==='day') ? (k===LATEST) : (k>=w0 && k<=LATEST);
       if(inR){ taxAll += (da[k][1]||0); qtyAll += (da[k][2]||0); }
     }
-    // 主指标用「全量」（全渠道+所有主播）；本组销量作小字参考
+    // 主指标用「本组」（与 BI 商务组口径一致）；全量作小字参考
     return {group:b.group, label:b.label,
-            qty: hasAll ? qtyAll : qty,
-            tax: hasAll ? taxAll : tax,
-            sub: hasAll ? qty : null};
+            qty: qty,
+            tax: tax,
+            sub: hasAll ? qtyAll : null};
   });
 }
 function renderBoom(){
@@ -535,11 +535,11 @@ function renderBoom(){
   list.forEach(x=>{
     html+='<tr><td class="name">'+x.group+'</td><td>'+x.label+'</td>'+
       '<td style="text-align:right">'+(x.qty?fmt(x.qty):'<span class="muted">0</span>')+
-        (x.sub==null?'':'<div class="muted" style="font-size:10.5px">本组 '+fmt(x.sub)+'</div>')+'</td>'+
+        (x.sub==null?'':'<div class="muted" style="font-size:10.5px">全量 '+fmt(x.sub)+'</div>')+'</td>'+
       '<td style="text-align:right">'+money(x.tax)+'</td></tr>';
   });
   el.innerHTML=html+'</tbody></table>'+
-    '<div class="muted" style="font-size:11px;margin-top:6px">全渠道合计（抖音+快手+视频号+小红书），含所有主播；小字「本组」= 抖音仅商务组口径</div>';
+    '<div class="muted" style="font-size:11px;margin-top:6px">本组 = 抖音商务组口径（与 BI「26年分组=商务组」一致），含全渠道；小字「全量」= 含抖音直播组/店铺组</div>';
 }
 document.getElementById('boomSel').addEventListener('change', e=>{ boomMode=e.target.value; renderBoom(); });
 

@@ -5,12 +5,6 @@ on:
     # 每天 11:30（北京时间）= 03:30 UTC
     - cron: "30 3 * * *"
   workflow_dispatch:
-  push:
-    branches: [main]
-    # 只对代码变更触发；忽略数据/产物，避免工作流自己的提交反复触发
-    paths-ignore:
-      - 'docs/**'
-      - '*.json'
 
 permissions:
   contents: write
