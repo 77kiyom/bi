@@ -45,6 +45,11 @@ BOOM_ITEMS = [
     ('服配',      '保暖内衣',       ['保暖内衣', '保暖衣']),
 ]
 
+# 个别商品 BI 分组有误时的显式归组（item_id -> group）
+ITEM_GROUP_OVERRIDE = {
+    '4264557': '家纺组',   # 【达播】新一代·热力被3.0，BI 误归「音乐周边数码影音」
+}
+
 # 爆品统计时沿用的目标组口径：(mode, use_keep)
 BOOM_SPEC = {d[0]: (d[2], d[3]) for d in GROUP_DEFS}
 
@@ -141,13 +146,14 @@ def load_boom_items(data_dir):
         pi, pn, pg = h.index('item_id'), h.index('item_name'), h.index('group')
         for row in r:
             nm = row[pn] or ''
-            grp = GROUP_ALIAS.get(row[pg].strip(), row[pg].strip())
+            try:
+                iid = str(int(float(row[pi])))
+            except ValueError:
+                continue
+            grp = ITEM_GROUP_OVERRIDE.get(iid) or GROUP_ALIAS.get(row[pg].strip(), row[pg].strip())
             for bg, bl, kws in BOOM_ITEMS:
                 if any(k.lower() in nm.lower() for k in kws):
-                    try:
-                        cand.setdefault((bg, bl), []).append((str(int(float(row[pi]))), grp))
-                    except ValueError:
-                        pass
+                    cand.setdefault((bg, bl), []).append((iid, grp))
                     break
     out = {}
     for (bg, bl), lst in cand.items():
