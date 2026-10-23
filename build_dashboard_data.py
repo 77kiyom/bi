@@ -241,7 +241,6 @@ def main():
     anchors = {}   # 主播名称 -> {'id':..., 'daily': {date: [amt, qty]}}
 
     boom = {}
-    boom_all = {}
     for row in rr:
         dt = row[di]
         if not (args.date_from <= dt <= (args.date_to or '9999-12-31')):
@@ -254,20 +253,11 @@ def main():
         g = combo_group.get((a, row[shop_idx]), '')
         # 爆品榜：按商品名关键词统计，并沿用目标渠道组的业务口径（KEEP_GROUPS / uid 排除），
         # 否则会把非商务组主播（如直播组）也算进来，导致远超该组总量
+        # 爆品榜：统一口径 —— 全渠道订单里按商品名关键词匹配，销量/含税直接相加
         bm = boom_by_item.get(row[ii])
         if bm:
-            ba = boom_all.setdefault(bm, defaultdict(lambda: [0.0, 0.0, 0.0]))
-            ba[dt][0] += s; ba[dt][1] += t; ba[dt][2] += q
-            spec = BOOM_SPEC.get(bm[0])
-            ok = True
-            if spec:
-                if spec[1] and g not in KEEP_GROUPS:
-                    ok = False
-                if spec[0] == 'exclude' and (a in uids or a in extra_excl.get(bm[0], set())):
-                    ok = False
-            if ok:
-                bd = boom.setdefault(bm, defaultdict(lambda: [0.0, 0.0, 0.0]))
-                bd[dt][0] += s; bd[dt][1] += t; bd[dt][2] += q
+            bd = boom.setdefault(bm, defaultdict(lambda: [0.0, 0.0, 0.0]))
+            bd[dt][0] += s; bd[dt][1] += t; bd[dt][2] += q
         if row[ii] not in items:
             continue
         all_dates.add(dt)
@@ -402,11 +392,10 @@ def main():
                 _dt, _iid, _nm, _g, _amt, _tax, _qty = _row[:7]
                 for _bg, _bl, _kws in BOOM_ITEMS:
                     if any(k.lower() in (_nm or '').lower() for k in _kws):
-                        for _tgt in (boom, boom_all):
-                            _bd = _tgt.setdefault((_bg, _bl), defaultdict(lambda: [0.0, 0.0, 0.0]))
-                            _bd[_dt][0] += _amt
-                            _bd[_dt][1] += _tax
-                            _bd[_dt][2] += _qty
+                        _bd = boom.setdefault((_bg, _bl), defaultdict(lambda: [0.0, 0.0, 0.0]))
+                        _bd[_dt][0] += _amt
+                        _bd[_dt][1] += _tax
+                        _bd[_dt][2] += _qty
                         break
 
         def _build_channel(chdata, order, targets):
@@ -494,10 +483,8 @@ def main():
            'video': video_out, 'kuaishou': kuaishou_out,
            'boom': [{'group': bg, 'label': bl,
                      'daily': {k: [round(x[0], 2), round(x[1], 2), round(x[2])]
-                               for k, x in sorted(boom.get((bg, bl), {}).items())},
-                     'daily_all': {k: [round(x[0], 2), round(x[1], 2), round(x[2])]
-                                   for k, x in sorted(boom_all.get((bg, bl), {}).items())}}
-                    for (bg, bl) in boom_all.keys()]}
+                               for k, x in sorted(v.items())}}
+                    for (bg, bl), v in boom.items()]}
     json.dump(out, open(out_path, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     # 日报附加数据：按日订单量（去重）+ 达人日明细
     extra = {

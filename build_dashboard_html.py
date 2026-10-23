@@ -507,22 +507,13 @@ function boomRows(which){
   const LATEST=(ex.meta&&ex.meta.data_to)||(DATA.meta&&DATA.meta.data_to);
   const w0=addDays(LATEST,-6);
   return (DATA.boom||[]).map(b=>{
-    const dv=b.daily||{}, da=b.daily_all||{};
-    const hasAll = !!b.daily_all;
-    let qty=0, tax=0, qtyAll=0, taxAll=0;
+    const dv=b.daily||{};
+    let qty=0, tax=0;
     for(const k in dv){
       const inR=(which==='day') ? (k===LATEST) : (k>=w0 && k<=LATEST);
       if(inR){ tax += (dv[k][1]||0); qty += (dv[k][2]||0); }
     }
-    for(const k in da){
-      const inR=(which==='day') ? (k===LATEST) : (k>=w0 && k<=LATEST);
-      if(inR){ taxAll += (da[k][1]||0); qtyAll += (da[k][2]||0); }
-    }
-    // 主指标用「本组」（与 BI 商务组口径一致）；全量作小字参考
-    return {group:b.group, label:b.label,
-            qty: qty,
-            tax: tax,
-            sub: hasAll ? qtyAll : null};
+    return {group:b.group, label:b.label, qty:qty, tax:tax};
   });
 }
 function renderBoom(){
@@ -534,12 +525,11 @@ function renderBoom(){
     '<th style="text-align:right">销量</th><th style="text-align:right">含税收入</th></tr></thead><tbody>';
   list.forEach(x=>{
     html+='<tr><td class="name">'+x.group+'</td><td>'+x.label+'</td>'+
-      '<td style="text-align:right">'+(x.qty?fmt(x.qty):'<span class="muted">0</span>')+
-        (x.sub==null?'':'<div class="muted" style="font-size:10.5px">全量 '+fmt(x.sub)+'</div>')+'</td>'+
+      '<td style="text-align:right">'+(x.qty?fmt(x.qty):'<span class="muted">0</span>')+'</td>'+
       '<td style="text-align:right">'+money(x.tax)+'</td></tr>';
   });
   el.innerHTML=html+'</tbody></table>'+
-    '<div class="muted" style="font-size:11px;margin-top:6px">本组 = 抖音商务组口径（与 BI「26年分组=商务组」一致），含全渠道；小字「全量」= 含抖音直播组/店铺组</div>';
+    '<div class="muted" style="font-size:11px;margin-top:6px">统一口径：抖音 + 快手 + 视频号 + 小红书全部订单，按商品名关键词匹配后，销量与含税收入直接相加（不区分主播分组）</div>';
 }
 document.getElementById('boomSel').addEventListener('change', e=>{ boomMode=e.target.value; renderBoom(); });
 
