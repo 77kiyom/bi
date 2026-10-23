@@ -406,6 +406,8 @@ def main():
                 _dt, _iid, _nm, _g, _amt, _tax, _qty = _row[:7]
                 for _bg, _bl, _kws in BOOM_ITEMS:
                     if any(k.lower() in (_nm or '').lower() for k in _kws):
+                        if _g != _bg:      # 同样要求商品属于该渠道组
+                            break
                         _bd = boom.setdefault((_bg, _bl), defaultdict(lambda: [0.0, 0.0, 0.0]))
                         _bd[_dt][0] += _amt
                         _bd[_dt][1] += _tax
