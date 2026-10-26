@@ -368,16 +368,17 @@ function renderSales(){
       <div class="ks" style="margin-top:5px;justify-content:space-between"><span>${pLabel}目标完成率</span><b>${rate==null?'—':rate.toFixed(1)+'%'}</b></div></div>`;
     rows += `<tr><td class="name">${g.name}</td>
       <td>${money(v[0])}</td><td>${money(v[1])}</td><td>${fmt(v[2])}</td>
-      <td>${money(g.week_cur[0])}</td><td>${money(g.week_prev[0])}</td>
-      <td>${money(g.month[0])}</td><td>${money(g.quarter[0])}</td></tr>`;
+      <td>${money(g.week_cur[1])}</td><td>${money(g.week_prev[1])}</td>
+      <td>${money(g.month[1])}</td><td>${money(g.quarter[1])}</td></tr>`;
   });
   document.getElementById('cards').innerHTML = cards;
   document.getElementById('dailyTable').innerHTML =
     `<table><thead><tr><th>组</th><th>销售额</th><th>含税收入</th><th>销量</th>
-      <th>本周</th><th>上周</th><th>本月</th><th>Q4 季度</th></tr></thead>
+      <th>本周含税</th><th>上周含税</th><th>本月含税</th><th>Q4 季度含税</th></tr></thead>
      <tbody>${rows}
      <tr class="tot-row"><td>合计</td><td>${money(tAll[0])}</td><td>${money(tAll[1])}</td><td>${fmt(tAll[2])}</td>
-      <td colspan="4" class="muted">—</td></tr></tbody></table>`;
+      <td colspan="4" class="muted">—</td></tr></tbody></table>
+     <div class="muted" style="font-size:11px;margin-top:6px">本周/上周/本月/Q4 季度 四列均为「含税收入」；Q4 季度 = 10-01~12-31 累计，目前只含 10 月</div>`;
 
   renderTop();
 }
