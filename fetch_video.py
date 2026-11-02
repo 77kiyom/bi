@@ -76,6 +76,10 @@ CHANNELS = {
         'report': 36928,
         'map_component': 'c-1-18047-49252-li83fids',    # 快手分组·商品明细（item_id + group_name）
         'order_component': 'c-1-18047-45005-ktayxmbp',  # 快手明细（订单级）
+        # 该组件自带日期筛选器是「相对时间=本月」，跨月后只剩当月；
+        # 导出时必须用 defaultFilters 显式覆盖成我们要的区间。
+        'order_date_filter': 'c-1-18047-45005-ktayxmbt',
+        'map_date_filter': 'c-1-18047-49252-kyidklgk',   # 该组件挂在「下单日期」筛选器上
         'map_limit': 600,
         'date_col': '日期', 'item_col': 'item_id', 'name_col': '商品名称',
         'amt_col': '销售额', 'tax_col': '含税收入-财务', 'qty_col': '销量',
@@ -153,8 +157,14 @@ def fetch_day(channel, day):
     return channel, d0, agg, items
 
 
-def _export_component(report, component):
-    """异步导出组件，返回 CSV 文本。"""
+def _export_component(report, component, default_filters=None):
+    """异步导出组件，返回 CSV 文本。
+
+    default_filters: 组件自带的日期筛选器是「本月」时，异步导出会被它限死，
+    这里用同步导出接口（支持 defaultFilters）替代，见 _export_component_sync。
+    """
+    if default_filters:
+        return _export_component_sync(report, component, default_filters)
     res = yc.api_post('/api/dash/report/asyncExportExcel', {
         'reportId': report, 'componentId': component,
         'exportType': 'csv', 'excelSplitLimit': 1000000})
@@ -186,33 +196,85 @@ def _export_component(report, component):
             pass
 
 
+def _export_component_sync(report, component, default_filters):
+    """同步导出（支持 defaultFilters，可指定任意日期区间）。
+
+    限制：单次最多返回 5 万行。快手明细整季约 1.7 万行，够用；
+    若将来超限，需按店铺/日期再拆批。
+    """
+    params = {
+        'reportId': report, 'componentId': component, 'type': 'component',
+        'exportType': 'csv', 'enhance': False, 'useOriginData': False,
+        'includeTitle': False, 'rowsLimit': 2000000, 'excelSplitLimit': 1000000,
+        'defaultFilters': default_filters,
+    }
+    last = None
+    for attempt in range(1, 5):
+        try:
+            r = yc.api_post('/api/dash/report/exportExcel', params, timeout=900)
+        except Exception as e:
+            last = '%s: %s' % (type(e).__name__, e)
+            time.sleep(5 * attempt)
+            continue
+        res = r.get('result') or {}
+        link = res.get('link')
+        if link:
+            if '/dash/store/' not in link and 'token=' not in link:
+                link += ('&' if '?' in link else '?') + 'token=' + yc.get_token()
+            data = urllib.request.urlopen(urllib.request.Request(link), timeout=1800).read()
+            return data.decode('utf-8-sig', errors='replace')
+        last = r.get('message') or ('code=%s' % r.get('code'))
+        time.sleep(5 * attempt)
+    raise RuntimeError('同步导出失败: %s' % last)
+
+
 def fetch_order_channel(channel, d_from, d_to):
     """模式 B：订单级抓取（快手）。"""
     cfg = CHANNELS[channel]
+    lo, hi = d_from.isoformat(), d_to.isoformat()
     # 1) 商品明细 → item_id -> 组 对照表
-    r = yc.api_post('/api/dash/report/getData', {
-        'reportId': cfg['report'], 'type': 'report',
-        'limit': cfg.get('map_limit', 600)}, timeout=240)
-    ns = None
-    for c in (r.get('result') or []):
-        if c.get('componentId') == cfg['map_component']:
-            ns = c.get('normalSheetData') or []
-            break
+    #    该组件同样带「本月」筛选，不传 defaultFilters 会只剩当月商品（实测 366 -> 21）。
+    #    注意：getData + defaultFilters 会触发 SQL 报错，这里改用同步导出。
+    map_filters = None
+    if cfg.get('map_date_filter'):
+        map_filters = {cfg['map_date_filter']: {
+            'type': 'StaticTime',
+            'minBound': lo + ' 00:00:00',
+            'maxBound': hi + ' 24:00:00'}}
+    if map_filters:
+        raw_map = _export_component(cfg['report'], cfg['map_component'], map_filters)
+        rd_map = csv.reader(io.StringIO(raw_map))
+        h = next(rd_map)
+        ns = [h] + [r for r in rd_map]
+    else:
+        r = yc.api_post('/api/dash/report/getData', {
+            'reportId': cfg['report'], 'type': 'report',
+            'limit': cfg.get('map_limit', 600)}, timeout=240)
+        ns = None
+        for c in (r.get('result') or []):
+            if c.get('componentId') == cfg['map_component']:
+                ns = c.get('normalSheetData') or []
+                break
     if not ns:
         raise RuntimeError('未取到商品明细（对照表）')
-    h = ns[0]
-    ix = {k: i for i, k in enumerate(h)}
+    ix = {k: i for i, k in enumerate(ns[0])}
     imap = {}
     for row in ns[1:]:
-        if not row or row[0] == '总计':
+        if not row or row[0] == '总计' or len(row) < len(ns[0]):
             continue
         g = cfg['group_map'].get(row[ix['group_name']])
         if g:
             imap[str(row[ix['item_id']])] = g
     print('   对照表 item 数: %d' % len(imap), flush=True)
 
-    # 2) 导出订单明细
-    raw = _export_component(cfg['report'], cfg['order_component'])
+    # 2) 导出订单明细（显式指定日期区间，绕开组件自带的「本月」筛选）
+    order_filters = None
+    if cfg.get('order_date_filter'):
+        order_filters = {cfg['order_date_filter']: {
+            'type': 'StaticTime',
+            'minBound': lo + ' 00:00:00',
+            'maxBound': hi + ' 24:00:00'}}
+    raw = _export_component(cfg['report'], cfg['order_component'], order_filters)
     rd = csv.reader(io.StringIO(raw))
     h2 = next(rd)
     ix2 = {k: i for i, k in enumerate(h2)}
@@ -221,7 +283,6 @@ def fetch_order_channel(channel, d_from, d_to):
     daily = {}
     items = {}
     n = 0
-    lo, hi = d_from.isoformat(), d_to.isoformat()
     for row in rd:
         d = row[ix2[cfg['date_col']]].strip()
         if len(d) != 10 or d[4] != '-' or not (lo <= d <= hi):
