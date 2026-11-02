@@ -36,7 +36,7 @@ SKILL_DIR = ('C:/Users/wujie15/AppData/Local/Programs/WorkBuddyAI/resources/app.
              '/resources/plugins/workbuddy-builtin/skills/library')
 PY = sys.executable
 BJ_TZ = datetime.timezone(datetime.timedelta(hours=8))   # 北京时间，避免 CI(UTC) 下日期错位
-FLYBOOK_TOKEN = os.environ.get('FLYBOOK_TOKEN', '')   # 飞书 wiki「短视频产出达人uid」obj_token
+FLYBOOK_TOKEN = 'X83Ks1zgehIYX4t9OiecZ93Mnrg'   # 飞书 wiki「短视频产出达人uid」obj_token
 
 ASYNC_COMPONENTS = [
     ('c-1-18047-45005-kjmplaah', 45005, 'douyin_detail'),      # 抖音订单明细
@@ -209,10 +209,48 @@ def update_flybook(date_dir):
               % (type(e).__name__, e), flush=True)
 
 
+def _export_date_span(date_dir):
+    """读 douyin_detail.zip，返回 (最小日期, 最大日期)。"""
+    import csv as _csv
+    p = os.path.join(date_dir, 'douyin_detail.zip')
+    if not os.path.exists(p):
+        return None
+    z = zipfile.ZipFile(p)
+    txt = z.read(z.namelist()[0]).decode('utf-8-sig', errors='replace')
+    rd = _csv.reader(io.StringIO(txt))
+    h = next(rd)
+    di = h.index('下单日期')
+    ds = sorted({row[di][:10] for row in rd if row[di] and row[di][:2] == '20'})
+    return (ds[0], ds[-1]) if ds else None
+
+
+def _detect_gap(prev_json, date_dir):
+    """上一版看板最新日期 与 本次导出起始日期 之间若断开，返回需要补的区间。"""
+    span = _export_date_span(date_dir)
+    if not span:
+        return None
+    try:
+        prev = json.load(open(prev_json, encoding='utf-8'))
+        prev_to = (prev.get('meta') or {}).get('data_to')
+    except Exception:
+        return None
+    if not prev_to:
+        return None
+    new_from = datetime.date.fromisoformat(span[0])
+    prev_to_d = datetime.date.fromisoformat(prev_to)
+    if prev_to_d >= new_from - datetime.timedelta(days=1):
+        return None                      # 连续，无缺口
+    gap_from = prev_to_d + datetime.timedelta(days=1)
+    gap_to = new_from - datetime.timedelta(days=1)
+    return (gap_from.isoformat(), gap_to.isoformat())
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--skip-fetch', action='store_true')
     ap.add_argument('--skip-upload', action='store_true')
+    ap.add_argument('--skip-backfill', action='store_true',
+                    help='跳过跨月缺口的自动补拉')
     ap.add_argument('--data-dir', default=None)
     args = ap.parse_args()
 
@@ -244,8 +282,29 @@ def main():
             print('  [警告] 视频号抓取失败(%s)，沿用已有 video_data.json' % type(e).__name__)
 
     print('\n=== 生成看板数据 ===')
-    subprocess.run([PY, os.path.join(BASE, 'build_dashboard_data.py'),
-                    '--data-dir', date_dir], check=True)
+    # 历史合并：BI「抖音明细」的日期筛选是「本月」，每月 1 号起导出只剩当月，
+    # 不合并就会把上月数据整段冲掉（2026-11-01 曾因此丢失整个 10 月）。
+    prev_candidates = [os.path.join(BASE, 'docs', 'dashboard_data.json'),
+                       os.path.join(BASE, 'dashboard_data.json')]
+    prev = next((p for p in prev_candidates if os.path.exists(p)), None)
+
+    # 自动补缺口：上一版最新日期与本次导出起始日期之间若断开，用同步导出按天补上
+    if not args.skip_fetch and prev and not args.skip_backfill:
+        gap = _detect_gap(prev, date_dir)
+        if gap:
+            print('  检测到数据缺口 %s ~ %s，开始补拉 ...' % gap)
+            try:
+                subprocess.run([PY, os.path.join(BASE, 'backfill_range.py'),
+                                '--from', gap[0], '--to', gap[1],
+                                '--data-dir', date_dir], check=True)
+            except Exception as e:
+                print('  [警告] 补拉失败(%s: %s)，看板将缺该区间数据' % (type(e).__name__, e))
+
+    build_args = [PY, os.path.join(BASE, 'build_dashboard_data.py'), '--data-dir', date_dir]
+    if prev:
+        build_args += ['--merge-from', prev]
+        print('  历史来源: %s' % prev)
+    subprocess.run(build_args, check=True)
     subprocess.run([PY, os.path.join(BASE, 'build_dashboard_html.py')], check=True)
 
     if not args.skip_upload:

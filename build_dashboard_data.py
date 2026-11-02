@@ -198,6 +198,10 @@ def main():
     ap.add_argument('--out', default=None)
     ap.add_argument('--date-from', default='2026-10-01')
     ap.add_argument('--date-to', default=None)
+    # 历史合并：BI 报表「抖音明细」的日期筛选是「本月」，跨月后导出只剩当月，
+    # 会把上月数据整段冲掉。用上一版看板数据补回新导出里没有的日期。
+    ap.add_argument('--merge-from', default=None,
+                    help='上一版 dashboard_data.json，用于补齐本次导出缺失的历史日期')
     args = ap.parse_args()
     data_dir = args.data_dir or os.path.join(BASE, 'data', DEFAULT_DATE)
     out_path = args.out or os.path.join(BASE, 'dashboard_data.json')
@@ -304,6 +308,56 @@ def main():
                 an['daily'][dt][0] += s
                 an['daily'][dt][1] += t
                 an['daily'][dt][2] += q
+
+    # ===== 历史合并：补回本次导出里缺失的日期 =====
+    # BI 报表「抖音明细」的日期筛选器是「相对时间 = 本月」，每月 1 号起导出只剩当月，
+    # 会把上月数据整段冲掉（2026-11-01 就因此丢了整个 10 月）。
+    # 这里用上一版看板数据补回「本次导出没有的日期」，新导出优先。
+    merged_days = 0
+    if args.merge_from and os.path.exists(args.merge_from):
+        prev = json.load(open(args.merge_from, encoding='utf-8'))
+        prev_by_name = {g['name']: g for g in (prev.get('groups') or [])}
+        # 历史存档里可能有个别商品已从当前商品表消失（下架/改归属），
+        # 用存档 top_items 里的名称兜底，找不到就跳过该商品的明细合并（组总量仍由 daily 保证）。
+        prev_item_names = {}
+        for _g in (prev.get('groups') or []):
+            for _it in (_g.get('top_items') or []):
+                prev_item_names[str(_it.get('item_id'))] = (_it.get('name'), _it.get('group_name'))
+        for name, gs, mode, use_keep, _ in GROUP_DEFS:
+            pg = prev_by_name.get(name)
+            if not pg:
+                continue
+            st = store[name]
+            for dt, v in (pg.get('daily') or {}).items():
+                if dt in st['daily']:
+                    continue          # 新数据优先，不覆盖
+                st['daily'][dt][0] += v[0]; st['daily'][dt][1] += v[1]; st['daily'][dt][2] += v[2]
+                all_dates.add(dt)
+                merged_days += 1
+            for iid, dv in (pg.get('item_daily') or {}).items():
+                iid = str(iid)
+                if iid not in items:
+                    nm = prev_item_names.get(iid)
+                    if not nm or not nm[0]:
+                        continue      # 无名称兜底，跳过该商品明细（组总量不受影响）
+                    items[iid] = (nm[0], nm[1] or '')
+                for dt, v in dv.items():
+                    if dt in st['item_daily'][iid]:
+                        continue
+                    st['item_daily'][iid][dt][0] += v[0]
+                    st['item_daily'][iid][dt][1] += v[1]
+                    st['item_daily'][iid][dt][2] += v[2]
+                    st['item'][iid][0] += v[0]; st['item'][iid][1] += v[1]; st['item'][iid][2] += v[2]
+        for pb in (prev.get('boom') or []):
+            key = (pb.get('group'), pb.get('label'))
+            bd = boom.setdefault(key, defaultdict(lambda: [0.0, 0.0, 0.0]))
+            for dt, v in (pb.get('daily') or {}).items():
+                if dt in bd:
+                    continue
+                bd[dt][0] += v[0]; bd[dt][1] += v[1]; bd[dt][2] += v[2]
+        print('  [历史合并] 从上一版补回 %d 个组-日数据' % merged_days)
+    elif args.merge_from:
+        print('  [历史合并] 未找到 %s，跳过' % args.merge_from)
 
     today = datetime.datetime.now(BJ_TZ).date()
     w_sun, w_sat = week_bounds(today)
