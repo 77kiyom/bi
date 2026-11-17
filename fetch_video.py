@@ -107,7 +107,9 @@ def fetch_day(channel, day):
     d0 = day.isoformat()
     last_err = None
     r = None
-    for attempt in range(1, 4):   # 大报表偶发 IncompleteRead，重试 3 次
+    # BI 的 getData 对并发很敏感，容易返回 738 HttpConnResetError。
+    # 这里重试 6 次并逐步退避；配合 main 里较低的并发数使用。
+    for attempt in range(1, 7):
         try:
             r = yc.api_post('/api/dash/report/getData', {
                 'reportId': cfg['report'], 'type': 'report', 'limit': cfg.get('limit', 20000),
@@ -116,11 +118,14 @@ def fetch_day(channel, day):
                     'minBound': d0 + ' 00:00:00',
                     'maxBound': d0 + ' 24:00:00'}},   # 必须 24:00:00；23:59:59 单天返回空
             }, timeout=180)
-            break
+            if r.get('code') == 200:
+                break
+            last_err = RuntimeError('%s getData 返回 %s' % (channel, r.get('code')))
+            r = None
         except Exception as e:
             last_err = e
             r = None
-            time.sleep(2 * attempt)
+        time.sleep(2 * attempt)
     if r is None:
         raise last_err if last_err else RuntimeError('getData 无响应')
     if r.get('code') != 200:
@@ -358,7 +363,7 @@ def main():
             print('%s：按天抓取 %s ~ %s，共 %d 天' % (ch, d_from, d_to, len(days)), flush=True)
             daily, items = {}, []
             ok = fail = 0
-            with cf.ThreadPoolExecutor(max_workers=4) as ex:
+            with cf.ThreadPoolExecutor(max_workers=2) as ex:
                 futs = {ex.submit(fetch_day, ch, day): day for day in days}
                 for fu in cf.as_completed(futs):
                     day = futs[fu]
