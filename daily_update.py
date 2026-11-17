@@ -185,7 +185,7 @@ def update_flybook(date_dir):
     print('[飞书] 更新达人清单 ...', flush=True)
     try:
         rc, raw, err = _run_lark_cli(['sheets', '+csv-get', '--spreadsheet-token', FLYBOOK_TOKEN,
-                                      '--range', 'Sheet1!A1:C245', '--as', 'user'])
+                                      '--range', 'Sheet1!A1:C400', '--as', 'user'])
         raw = (raw or '').strip()
         csv_txt = ''
         if raw:
