@@ -19,6 +19,10 @@
   header h1{margin:0;font-size:22px;letter-spacing:.5px;color:var(--txt)}
   header .sub{font-size:12.5px;color:var(--muted)}
   .toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:16px}
+  .manual-btn{margin-left:auto;border:1px solid var(--brand);background:var(--brand);color:#fff;
+    padding:7px 16px;border-radius:9px;font-size:13px;text-decoration:none;font-family:inherit;
+    white-space:nowrap;transition:opacity .15s}
+  .manual-btn:hover{opacity:.88}
   .seg{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:9px;overflow:hidden}
   .seg button{border:0;background:transparent;padding:7px 14px;font-size:13px;color:#54606e;cursor:pointer;
     font-family:inherit;border-right:1px solid var(--line)}
@@ -114,6 +118,8 @@
       <button data-v="channel" data-c="快手" class="ch-btn">快手</button>
       <button data-v="channel" data-c="视频号" class="ch-btn">视频号</button>
     </div>
+    <a href="https://github.com/77kiyom/bi/actions/workflows/update.yml"
+       target="_blank" rel="noopener" class="manual-btn">手动更新（在 GitHub 运行）</a>
   </div>
 
   <div class="panel">
